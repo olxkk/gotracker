@@ -1,0 +1,25 @@
+[Unit]
+Description=Anime and Manga Tracker Discord Bot
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=animebot
+Group=animebot
+WorkingDirectory=/opt/anime-manga-tracker
+EnvironmentFile=/opt/anime-manga-tracker/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/anime-manga-tracker/.venv/bin/python /opt/anime-manga-tracker/bot.py
+Restart=always
+RestartSec=10
+TimeoutStopSec=30
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/anime-manga-tracker/data
+
+[Install]
+WantedBy=multi-user.target

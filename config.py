@@ -23,7 +23,7 @@ class Settings:
     discord_token: str = os.getenv("DISCORD_TOKEN", "")
     mal_client_id: str = os.getenv("MAL_CLIENT_ID", "")
     database_path: str = os.getenv("DATABASE_PATH", str(ROOT_DIR / "data" / "tracker.sqlite3"))
-    poll_interval_seconds: int = _int_env("POLL_INTERVAL_SECONDS", 1800, 60)
+    poll_interval_seconds: int = _int_env("POLL_INTERVAL_SECONDS", 60, 60)
     request_timeout_seconds: int = _int_env("REQUEST_TIMEOUT_SECONDS", 15, 3)
     max_response_bytes: int = _int_env("MAX_RESPONSE_BYTES", 2_000_000, 4096)
     dev_guild_id: int = _int_env("DEV_GUILD_ID", 0, 0)

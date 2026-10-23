@@ -1,14 +1,14 @@
 # Anime & Manga Tracker Discord Bot
 
-A lightweight, self-hosted Discord bot for community watchlists, scheduled anime episode tracking, permitted RSS news monitoring, and cautious manga metadata. It uses Python 3.11+, `discord.py` 2.x, asynchronous HTTP, SQLite, and `systemd` on Ubuntu.
+A Discord bot for keeping track of anime and manga, checking release schedules, and getting updates in the channels you choose. It runs on Python 3.11+ with `discord.py`, SQLite, and a few data-source APIs. The deployment instructions below cover Ubuntu with `systemd`; you can use another host if it supports the same Python setup.
 
-**Accuracy promise:** the bot does not treat a catalogue's episode/chapter total as a newly released episode/chapter, does not guess missing dates, and does not claim that an AniList airing schedule proves a stream is available. News is labeled according to the configured feed, and links are supplied so members can verify claims.
+**A quick note about release info:** catalogue episode and chapter counts don’t prove that something just came out, and an airing time doesn’t guarantee an episode is available to stream. When the bot can’t confirm something, it should say so rather than guess.
 
-## Put this project on your GitHub account (step by step)
+## Want to keep the code on GitHub?
 
-You do **not** need GitHub to run the bot, but you can use it to keep a copy of the source code and track updates. GitHub does not run the bot or host its always-on Discord connection; the bot still runs on your Oracle Cloud VM.
+You don’t need GitHub to run the bot. It’s just a handy place to keep the code and track changes. GitHub won’t keep the bot online for you; you’ll still need to run it on a hosting service.
 
-**Beginner recommendation:** use GitHub Desktop on a Windows or Mac computer.
+**New to GitHub?** GitHub Desktop is usually the easiest option on Windows or Mac.
 
 1. Download and extract the project ZIP. Open the extracted `anime-manga-tracker` folder.
 2. Go to <https://github.com/> and sign in. Click **New repository**, name it `anime-manga-tracker`, choose **Private** if desired, and create an empty repository. Do not add a README or `.gitignore` during creation because this project already contains them.
@@ -20,38 +20,42 @@ You do **not** need GitHub to run the bot, but you can use it to keep a copy of 
 
 For detailed GitHub Desktop, terminal/Git, and browser-upload instructions, see [`GITHUB_UPLOAD_GUIDE.md`](GITHUB_UPLOAD_GUIDE.md).
 
-### Files that are safe to publish
+### Which files can I upload?
 
-Include the Python source files and folders, tests, deployment templates/scripts, `README.md`, `GITHUB_UPLOAD_GUIDE.md`, `SECURITY_AUDIT.md`, `VERIFICATION.md`, `requirements.txt`, `requirements-dev.txt`, `.gitignore`, and `.env.example` (placeholders only).
+Include the Python source files and folders, tests, deployment templates/scripts, `README.md`, `COMMANDS.md`, `GITHUB_UPLOAD_GUIDE.md`, `SECURITY_AUDIT.md`, `VERIFICATION.md`, `requirements.txt`, `requirements-dev.txt`, `.gitignore`, and `.env.example` (placeholders only).
 
 Never publish `.env`, a real Discord token/API key/password, private SSH keys, production database files (`*.db`, `*.sqlite*`), backups, logs, `.venv/`, or generated `__pycache__/` and `*.pyc` files. A private GitHub repository is not a safe place for secrets either. If a token is exposed, reset it immediately; deleting it later is not enough.
 
 ---
 
-## Features
+## What the bot can do
 
 - Slash-command groups: `/track`, `/release`, `/news`, `/notify`, plus `/help`, `/status`, `/settings`.
 - Search with an explicit selection menu before adding a title; supports anime and manga and avoids accidental duplicate entries within one server.
-- Independent guild watchlists, channels, mention policies, quiet hours, and per-title/per-update-type preferences.
+- Independent guild watchlists, channels, mention policies, quiet hours, and per-title/per-update-type preferences. Notification setup includes `/notify guide`, quick per-title routing via `/notify show`, and a real delivery/mention test via `/notify test-title`.
 - MyAnimeList is the primary catalogue. Its weekly broadcast day/time is used to estimate the next airing when available; AniList and Kitsu are fallback catalogue sources.
 - RSS/Atom feeds for current news and announcement matching. The default feed is Crunchyroll News RSS, conservatively classified as third-party reporting because articles in a news feed are not necessarily first-party announcements about each series.
 - Persistent SQLite records for titles, schedules, feed items, events, source health, and notification deduplication.
-- Background scheduler starts once after Discord becomes ready; it is not tied to reconnect events. `systemd` restarts the process after an exit/reboot.
+- Background scheduler starts once after Discord becomes ready; it is not tied to reconnect events. `systemd` restarts the process after an exit/reboot. The default monitoring interval is 60 seconds (`POLL_INTERVAL_SECONDS=60`). Each cycle checks tracked titles sequentially, so a large list or a slow provider can make a cycle take longer than a minute; frequent checks may also encounter upstream API rate limits.
 - Role/user/everyone/no-mention modes; all outgoing messages use explicit `AllowedMentions`. External feed text cannot request an arbitrary ping.
 
-## Data-source limitations
+## Need help with commands?
+
+See [`COMMANDS.md`](COMMANDS.md) for a complete guide to every slash command, examples, permission requirements, notification routing, and test behavior. In Discord, `/help` gives a compact overview and `/notify guide` gives the recommended notification setup.
+
+## Where the bot gets its information (and what to expect)
 
 ### MyAnimeList (primary catalogue and estimated broadcast schedule)
+
+- API reference: <https://myanimelist.net/apiconfig/references/api/v2>
+- Supplies catalogue metadata and, when available, a regular broadcast day/time. The bot estimates the next weekly airing from that schedule using Japan time if MAL does not provide a timezone. This is an estimate, not a confirmed episode date or streaming availability.
+- API rate limits can change or temporarily degrade. Requests are paced conservatively and bounded retries respect rate-limit responses.
+
+### AniList (fallback catalogue and airing-time source)
 
 - GraphQL endpoint: <https://graphql.anilist.co>
 - Documentation: <https://docs.anilist.co/guide/graphql/>
 - Rate limiting: <https://docs.anilist.co/guide/rate-limiting>
-- Supplies anime/manga metadata and, when available, a regular broadcast day/time. The bot estimates the next weekly airing from that schedule using Japan time if MAL does not provide a timezone. This is an estimate, not a confirmed episode date or streaming availability.
-- API rate limits can change or temporarily degrade. Requests are paced conservatively and bounded retries respect rate-limit responses.
-
-### AniList (fallback catalogue)
-
-- GraphQL endpoint: <https://graphql.anilist.co>
 - Used as a secondary catalogue when MAL returns too few search results. Its `nextAiringEpisode` may provide a more precise airing time for AniList-sourced entries, but MAL-sourced tracks are not silently enriched from AniList.
 
 ### MangaDex (manga chapter monitoring)
@@ -63,7 +67,7 @@ Never publish `.env`, a real Discord token/API key/password, private SSH keys, p
 
 ### `/random` anime picker
 
-- `/random` lets members choose currently releasing, finished airing, or highly rated anime. The highly-rated category defaults to a minimum AniList average score of 75/100 and can be adjusted.
+- `/random` lets members choose currently releasing, finished airing, or highly rated anime. The highly-rated category defaults to a minimum AniList average score of 75/100 and can be adjusted. Optional genre, episode-count, and starting-year filters help narrow the pick.
 - Picks come from AniList catalogue results; the command returns title, status, synopsis when available, episode count, cover, and source link. A scheduled airing time is not proof of streaming availability.
 
 ### Kitsu
@@ -111,7 +115,7 @@ anime-manga-tracker/
 │   └── setup_ubuntu.sh
 ├── bot/
 │   ├── commands/{tracking,releases,news,notifications,general,helpers}.py
-│   ├── providers/{base,anilist,myanimelist,kitsu,official_sources}.py
+│   ├── providers/{base,anilist,myanimelist,kitsu,mangadex,official_sources}.py
 │   ├── services/{scheduler,release_service,news_service,notification_service}.py
 │   ├── database/{session,repositories}.py
 │   └── utils/{embeds,permissions,logging}.py
@@ -126,7 +130,7 @@ anime-manga-tracker/
     └── test_rate_limits.py
 ```
 
-## Local setup and tests
+## Running it and checking that it works
 
 Python 3.11 or later is recommended. These commands work from the project directory.
 
@@ -147,7 +151,7 @@ Edit `.env` and set `DISCORD_TOKEN`. Do not share the token. Start the bot with:
 python bot.py
 ```
 
-The database is created at `DATABASE_PATH` (default: `data/tracker.sqlite3`). You do not need to create it manually. To run offline tests without Discord credentials or live API calls:
+The database is created at `DATABASE_PATH` (default: `data/tracker.sqlite3`, inside the project folder). This SQLite file stores tracked titles and the bot’s saved settings. If your hosting environment sets `DATABASE_PATH`, that configured path takes precedence. Keep the same database file when updating the bot, or it may appear that your tracked shows have disappeared. You do not need to create it manually. To run offline tests without Discord credentials or live API calls:
 
 ```bash
 pytest -q
@@ -165,7 +169,7 @@ The automated tests use fake providers/Discord clients and temporary SQLite data
 6. Start the bot and use `/help`. Slash-command global registration can take time to appear. For faster testing, set `DEV_GUILD_ID` to your test server ID; the project copies/syncs commands to that guild. Remove/blank it for global registration once ready.
 7. Use `/notify channel` to choose a channel. Set a role/user target or keep `/notify target` at `none`. `@everyone` requires Administrator permission, setting a target explicitly, and typing the exact confirmation `ENABLE`; disabling requires `DISABLE`.
 
-## Oracle Cloud Free Tier deployment (primary recommendation)
+## Hosting the bot on an Ubuntu server
 
 Oracle's Always Free resources can run this small persistent process, but the provider controls capacity and may reclaim idle Always Free compute under its policy. **Do not assume a free instance will always be available or that this service has a permanent uptime guarantee.** Current eligibility/limits: [Always Free resources](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm) and [Free Tier FAQ](https://www.oracle.com/cloud/free/faq/).
 
@@ -222,7 +226,7 @@ Set at minimum:
 ```dotenv
 DISCORD_TOKEN=your_real_discord_bot_token
 DATABASE_PATH=/opt/anime-manga-tracker/data/tracker.sqlite3
-POLL_INTERVAL_SECONDS=1800
+POLL_INTERVAL_SECONDS=60
 ```
 
 Leave `MAL_CLIENT_ID` empty to disable MAL. Leave `DEV_GUILD_ID` empty for global slash commands, or enter a test guild ID while developing. The default Crunchyroll News RSS feed is used unless you replace it with `RSS_FEEDS=...`.
@@ -237,7 +241,7 @@ sudo systemctl status anime-tracker --no-pager
 sudo journalctl -u anime-tracker -f
 ```
 
-In the logs, look for a ready message and successful slash-command registration. Press `Ctrl+C` to exit the log viewer; it does not stop the service. Verify commands appear in Discord and run `/track search`, `/track add`, `/notify channel`, and `/status` in your test server.
+In the logs, look for a ready message and successful slash-command registration. Press `Ctrl+C` to exit the log viewer; it does not stop the service. Verify commands appear in Discord and run `/track search`, `/track add`, `/notify guide`, `/notify show`, `/notify test-title`, and `/status` in your test server. Use a test role/channel because `/notify test-title` can generate a real role/user ping.
 
 ### E. Updating without losing data
 
@@ -318,22 +322,33 @@ Common issues:
 - A device you already own that can run 24/7 (e.g. a Raspberry Pi or home server) avoids a hosting bill but still uses electricity and depends on your home internet/power.
 - Free web application tiers often sleep, restrict long-running processes, or change plan terms; verify persistent websocket and always-on worker support before migrating. GitHub Actions and uptime-ping tricks are not a suitable always-on Discord gateway host.
 
-## Command notes and boundaries
+## A few useful things to know
 
 - `/track add` opens a selection menu and stores the chosen source ID per guild.
 - `/release next` uses a provider schedule when one exists; dates are displayed with Discord's timestamp widget (localized for the person viewing it). The bot stores timestamps in UTC.
 - `/release latest` shows recent recorded events, not the total episode/chapter count pretending to be a latest release.
 - `/release check` serializes with scheduled checks. The scheduler is a single async task and de-duplicates the same media title across servers in each cycle.
 - `/news title` searches configured RSS/Atom feed titles and summaries. It reports no match when a feed doesn't provide a trustworthy result.
-- `/notify types` only changes fields you explicitly supply; omitted switches remain unchanged.
+- `/notify types` only changes fields you explicitly supply; omitted switches remain unchanged. `/notify show` is the quick per-title channel/optional-role setup; `/notify test-title` tests the effective route and sends a real test ping if one is configured; `/notify guide` shows the short instructions.
 - Ordinary notifications respect configured quiet hours. Official announcement events, metadata delays, and hiatus notices bypass quiet hours; see the message displayed when configuring the setting.
 - Historical events older than 48 hours are not automatically replayed. Recent undelivered event records can catch up after restart; notification rows are unique per guild/release key. A crash exactly between sending a message and confirming the DB write can never be made mathematically exactly-once across Discord + SQLite, but reservation records strongly reduce duplicates.
 
-## Channel routing: category defaults and per-title overrides
+## The easiest way to set up notifications
+
+The notification system keeps the advanced controls, but most servers can use three simple commands. Run these in the Discord server where the bot is installed; server setup commands require **Manage Server** permission.
+
+1. **Set a server-wide fallback:** run `/notify channel` and choose the channel for ordinary release alerts. Optionally run `/notify role` to choose the default role to ping, or leave the target as `none` for no ping.
+2. **Choose a channel for one title:** run `/notify show`, select a title that is already tracked, choose a channel, and optionally choose a role. Leaving `role` empty means the title sends without a ping. Anime titles route episode alerts; manga titles route chapter alerts. This overrides the matching category default for that title only.
+3. **Test the title:** run `/notify test-title` and select the tracked title. The bot checks whether title and episode/chapter alerts are enabled, resolves the actual route, and sends a test message to that channel. **This is a real message and can ping the configured role/user**, so only run it when that ping is expected. It does not create a fake release event or mark a real release as delivered.
+4. **Check settings:** `/notify routes` lists saved routes; `/notify settings` shows server defaults. `/notify guide` displays these steps inside Discord.
+
+If the test says alerts are disabled, use `/notify title` to enable title notifications and `/notify types` to enable episode or chapter alerts. If it reports no channel, use `/notify show` or `/notify channel`. If sending fails, check the bot's `View Channel`, `Send Messages`, and `Embed Links` permissions and confirm the selected role still exists.
+
+## Choosing where notifications go
 
 The bot supports both server-wide category routes and title-specific overrides. Category routes are the defaults; a title-specific route for the same category takes precedence. Categories are `episodes`, `chapters`, `news`, and `schedule`.
 
-Examples (run as a server administrator):
+Examples (run as a server administrator; the simpler `/notify show` command is recommended for a single title):
 
 - `/notify route category:Anime episodes channel:#anime-releases target:Role role:@Anime Fans`
 - `/notify route category:Manga chapters channel:#manga-releases target:Role role:@Manga Readers`
@@ -345,3 +360,12 @@ Examples (run as a server administrator):
 
 `/notify title-route` requires the title to already be tracked in this server. Each route stores its own channel and target, so choosing a role for one category does not affect other categories. Title-specific routes override category defaults, which override the legacy global notification channel/target. `@everyone` routing is accepted only for an administrator and requires the exact confirmation `ENABLE`; Discord mention permissions are explicitly restricted to the selected target.
 
+
+
+### Fixes in this source build
+
+- `/track add` and `/track search` accept a `source` choice, including **MangaDex (manga only)**. Leave it as all supported sources to search the existing catalogues.
+- `/random` chooses an AniList anime from the selected category: currently releasing, finished, or highly rated (minimum score 1–100, default 75). Optional filters include genre, maximum episode count, and starting year. It displays the AniList link, available synopsis, score, status, episode count, and airing details when available.
+- MangaDex chapter polling stores the initial latest whole-number English chapter as a baseline, then emits a new-chapter event only when a later check detects a higher chapter number. Decimal chapter numbers are intentionally ignored.
+
+`/random` also supports optional genre, episode-count, and starting-year filters. `/status` includes database, recent notification, and provider health information.
