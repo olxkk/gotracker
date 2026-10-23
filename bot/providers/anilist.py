@@ -122,6 +122,8 @@ class AniListProvider:
 
         # Random pages prevent the command from always returning the most popular titles.
         # The API still determines eligibility; every returned result is checked locally too.
+        successful_pages = 0
+        last_transient_error: ValueError | None = None
         for _ in range(8):
             page = random.randint(1, 40)
             filters = ["type: ANIME"]
@@ -152,7 +154,16 @@ class AniListProvider:
                 f"query ({', '.join(declarations)}) {{ Page(page: $page, perPage: $perPage) "
                 f"{{ media({', '.join(filters)}, sort: {sort}) {{{RANDOM_MEDIA_FIELDS} averageScore}} }} }}"
             )
-            data = await self._graphql(graphql, variables)
+            try:
+                data = await self._graphql(graphql, variables)
+            except ValueError as exc:
+                # _graphql retries malformed/oversized responses itself. A single bad
+                # response should not abort discovery: another page may still work.
+                if "invalid JSON" in str(exc) or "response exceeded configured size limit" in str(exc):
+                    last_transient_error = exc
+                    continue
+                raise
+            successful_pages += 1
             rows = data.get("Page", {}).get("media", [])
             eligible = []
             for row in rows:
@@ -179,6 +190,10 @@ class AniListProvider:
             if eligible:
                 row, score = random.choice(eligible)
                 return _from_anilist(row), score
+        # If every page failed before yielding JSON, preserve the provider error so the
+        # command logs a real outage instead of misleading the user with an empty result.
+        if successful_pages == 0 and last_transient_error is not None:
+            raise last_transient_error
         return None
 
     async def get(self, external_id: str, media_format: str = "ANIME") -> MediaTitle | None:

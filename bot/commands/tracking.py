@@ -19,7 +19,7 @@ class TrackingCog(commands.Cog):
 
     @track.command(name="add", description="Add a title: search, then select the exact anime or manga")
     @app_commands.describe(title="Title to search for", media_format="Search anime or manga catalogues", source="Required: choose default sources, AniList, Kitsu, MyAnimeList, or MangaDex (manga only)")
-    @app_commands.choices(media_format=[app_commands.Choice(name="Anime", value="ANIME"), app_commands.Choice(name="Manga", value="MANGA")], source=[app_commands.Choice(name="Default sources (AniList, Kitsu, MAL)", value="all"), app_commands.Choice(name="AniList", value="anilist"), app_commands.Choice(name="Kitsu", value="kitsu"), app_commands.Choice(name="MyAnimeList", value="myanimelist"), app_commands.Choice(name="MangaDex (manga only)", value="mangadex")])
+    @app_commands.choices(media_format=[app_commands.Choice(name="Anime", value="ANIME"), app_commands.Choice(name="Manga", value="MANGA")], source=[app_commands.Choice(name="Default sources (MangaDex first for manga)", value="all"), app_commands.Choice(name="AniList", value="anilist"), app_commands.Choice(name="Kitsu", value="kitsu"), app_commands.Choice(name="MyAnimeList", value="myanimelist"), app_commands.Choice(name="MangaDex (manga only)", value="mangadex")])
     async def add(self, interaction: discord.Interaction, title: str, media_format: app_commands.Choice[str], source: app_commands.Choice[str]):
         gid = guild_id(interaction)
         if gid is None:
@@ -96,7 +96,7 @@ class TrackingCog(commands.Cog):
 
     @track.command(name="search", description="Search catalogues without adding a result to the watchlist")
     @app_commands.describe(source="Required: choose default sources, AniList, Kitsu, MyAnimeList, or MangaDex (manga only)")
-    @app_commands.choices(media_format=[app_commands.Choice(name="Anime", value="ANIME"), app_commands.Choice(name="Manga", value="MANGA")], source=[app_commands.Choice(name="Default sources (AniList, Kitsu, MAL)", value="all"), app_commands.Choice(name="AniList", value="anilist"), app_commands.Choice(name="Kitsu", value="kitsu"), app_commands.Choice(name="MyAnimeList", value="myanimelist"), app_commands.Choice(name="MangaDex (manga only)", value="mangadex")])
+    @app_commands.choices(media_format=[app_commands.Choice(name="Anime", value="ANIME"), app_commands.Choice(name="Manga", value="MANGA")], source=[app_commands.Choice(name="Default sources (MangaDex first for manga)", value="all"), app_commands.Choice(name="AniList", value="anilist"), app_commands.Choice(name="Kitsu", value="kitsu"), app_commands.Choice(name="MyAnimeList", value="myanimelist"), app_commands.Choice(name="MangaDex (manga only)", value="mangadex")])
     async def search(self, interaction: discord.Interaction, title: str, media_format: app_commands.Choice[str], source: app_commands.Choice[str]):
         if source.value == "mangadex" and media_format.value != "MANGA":
             await interaction.response.send_message("MangaDex only supports manga. Choose **Manga** as the media format and try again.", ephemeral=True)

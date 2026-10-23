@@ -79,7 +79,10 @@ class Scheduler:
                 except Exception as exc:
                     await self.repo.source_failed(source, type(exc).__name__)
                     errors += 1
-                    log.warning("Check failed for provider %s (title ID %s)", source, external_id)
+                    log.warning(
+                        "Check failed for provider %s (format %s, title ID %s): %s: %s",
+                        source, media_format, external_id, type(exc).__name__, str(exc)[:240],
+                    )
             try:
                 await self.news_service.poll()
             except asyncio.CancelledError:

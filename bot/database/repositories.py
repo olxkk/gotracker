@@ -58,13 +58,92 @@ class Repository:
             existing_cursor = await conn.execute("SELECT id FROM tracked_titles WHERE guild_id=? AND provider=? AND external_id=?", (guild_id, media.provider, media.external_id))
             existing = await existing_cursor.fetchone()
             if existing:
-                return False, int(existing[0])
-            # A title is tracked once per server and format even when it is found through
-            # multiple catalogue providers. Anime and manga with the same name remain distinct.
-            duplicate_cursor = await conn.execute("SELECT id FROM tracked_titles WHERE guild_id=? AND format=? AND lower(title)=lower(?) ORDER BY id LIMIT 1", (guild_id, media.format, media.title.strip()))
-            duplicate = await duplicate_cursor.fetchone()
+                tracked_id = int(existing[0])
+                # If this MangaDex entry was already added by an older bot version, it
+                # may coexist with the AniList row it supersedes. Clean up that duplicate
+                # now that the cross-reference is available, while preserving its routes.
+                if media.format == "MANGA" and media.provider == "mangadex":
+                    anilist_id = (media.external_ids or {}).get("anilist")
+                    if anilist_id:
+                        legacy_cursor = await conn.execute(
+                            "SELECT id,provider,external_id FROM tracked_titles "
+                            "WHERE guild_id=? AND format='MANGA' AND provider='anilist' AND external_id=? AND id<>? LIMIT 1",
+                            (guild_id, str(anilist_id), tracked_id),
+                        )
+                        legacy = await legacy_cursor.fetchone()
+                        if legacy:
+                            old_provider, old_external_id = str(legacy[1]), str(legacy[2])
+                            route_cursor = await conn.execute(
+                                "SELECT category,channel_id,target_mode,role_id,user_id,everyone_enabled,updated_at "
+                                "FROM title_notification_routes WHERE guild_id=? AND provider=? AND external_id=?",
+                                (guild_id, old_provider, old_external_id),
+                            )
+                            for route in await route_cursor.fetchall():
+                                await conn.execute(
+                                    "INSERT OR IGNORE INTO title_notification_routes "
+                                    "(guild_id,provider,external_id,category,channel_id,target_mode,role_id,user_id,everyone_enabled,updated_at) "
+                                    "VALUES(?,?,?,?,?,?,?,?,?,?)",
+                                    (guild_id, media.provider, media.external_id, route[0], route[1], route[2], route[3], route[4], route[5], route[6]),
+                                )
+                            await conn.execute(
+                                "DELETE FROM title_notification_routes WHERE guild_id=? AND provider=? AND external_id=?",
+                                (guild_id, old_provider, old_external_id),
+                            )
+                            await conn.execute("DELETE FROM tracked_titles WHERE id=?", (int(legacy[0]),))
+                return False, tracked_id
+            # A title is tracked once per server and format. If the user explicitly
+            # chooses a different catalogue for an already tracked title, migrate that
+            # row to the selected provider instead of silently keeping the old provider.
+            # This matters for MangaDex: an existing AniList manga must not keep being
+            # polled with an AniList numeric ID after the user selects MangaDex.
+            duplicate = None
+            # MangaDex records may include an AniList cross-reference. Prefer that stable
+            # mapping when migrating providers because catalogue titles can be localized
+            # or spelled differently; fall back to an exact case-insensitive title match.
+            if media.format == "MANGA" and media.provider == "mangadex":
+                anilist_id = (media.external_ids or {}).get("anilist")
+                if anilist_id:
+                    cross_cursor = await conn.execute(
+                        "SELECT id,provider,external_id FROM tracked_titles "
+                        "WHERE guild_id=? AND format='MANGA' AND provider='anilist' AND external_id=? ORDER BY id LIMIT 1",
+                        (guild_id, str(anilist_id)),
+                    )
+                    duplicate = await cross_cursor.fetchone()
+            if duplicate is None:
+                duplicate_cursor = await conn.execute(
+                    "SELECT id,provider,external_id FROM tracked_titles "
+                    "WHERE guild_id=? AND format=? AND lower(title)=lower(?) ORDER BY id LIMIT 1",
+                    (guild_id, media.format, media.title.strip()),
+                )
+                duplicate = await duplicate_cursor.fetchone()
             if duplicate:
-                return False, int(duplicate[0])
+                tracked_id, old_provider, old_external_id = int(duplicate[0]), str(duplicate[1]), str(duplicate[2])
+                if old_provider == media.provider and old_external_id == media.external_id:
+                    return False, tracked_id
+
+                # Foreign-keyed title routes must be re-created around the identity change.
+                route_cursor = await conn.execute(
+                    "SELECT category,channel_id,target_mode,role_id,user_id,everyone_enabled,updated_at "
+                    "FROM title_notification_routes WHERE guild_id=? AND provider=? AND external_id=?",
+                    (guild_id, old_provider, old_external_id),
+                )
+                routes = await route_cursor.fetchall()
+                await conn.execute(
+                    "DELETE FROM title_notification_routes WHERE guild_id=? AND provider=? AND external_id=?",
+                    (guild_id, old_provider, old_external_id),
+                )
+                await conn.execute(
+                    "UPDATE tracked_titles SET provider=?,external_id=?,title=?,last_checked_at=NULL WHERE id=?",
+                    (media.provider, media.external_id, media.title, tracked_id),
+                )
+                for route in routes:
+                    await conn.execute(
+                        "INSERT INTO title_notification_routes "
+                        "(guild_id,provider,external_id,category,channel_id,target_mode,role_id,user_id,everyone_enabled,updated_at) "
+                        "VALUES(?,?,?,?,?,?,?,?,?,?)",
+                        (guild_id, media.provider, media.external_id, route[0], route[1], route[2], route[3], route[4], route[5], route[6]),
+                    )
+                return True, tracked_id
             cursor = await conn.execute(
                 "INSERT INTO tracked_titles(guild_id,provider,external_id,title,format,added_at) VALUES(?,?,?,?,?,?)",
                 (guild_id, media.provider, media.external_id, media.title, media.format, now),

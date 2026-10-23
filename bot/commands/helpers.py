@@ -83,7 +83,10 @@ class TrackResultSelect(discord.ui.Select):
         except Exception:
             await interaction.response.send_message("I couldn't save that title. Check the bot logs or try again.", ephemeral=True)
             return
-        content = f"Added **{clean_text(result.title, 160)}** to this server's watchlist." if inserted else f"**{clean_text(result.title, 160)}** is already tracked in this server."
+        if inserted:
+            content = f"Added or updated **{clean_text(result.title, 160)}** in this server's watchlist using **{clean_text(result.provider, 40)}**."
+        else:
+            content = f"**{clean_text(result.title, 160)}** is already tracked in this server using **{clean_text(result.provider, 40)}**."
         await interaction.response.edit_message(content=content, embed=media_embed(result.to_dict(), result.provider.title()), view=None)
 
 

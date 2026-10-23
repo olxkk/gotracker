@@ -118,7 +118,10 @@ class MangaDexProvider:
                 break
         cover = f"https://uploads.mangadex.org/covers/{manga_id}/{quote(cover_file)}.256.jpg" if cover_file else ""
         status = str(attrs.get("status") or "UNKNOWN").upper()
+        links = attrs.get("links") or {}
+        anilist_id = links.get("al") if isinstance(links, dict) else None
+        external_ids = {"anilist": str(anilist_id)} if anilist_id is not None and str(anilist_id).isdigit() else {}
         return MediaTitle(provider="mangadex", external_id=manga_id, title=str(title or f"MangaDex title {manga_id[:8]}")[:250],
                           format="MANGA", url=f"https://mangadex.org/title/{manga_id}", cover_url=cover,
                           description=str(attrs.get("description", {}).get("en", "") if isinstance(attrs.get("description"), dict) else "")[:1500],
-                          status=status, chapters=None, source_url=f"https://mangadex.org/title/{manga_id}")
+                          status=status, chapters=None, source_url=f"https://mangadex.org/title/{manga_id}", external_ids=external_ids)
