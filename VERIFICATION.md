@@ -1,18 +1,20 @@
 # What has and hasn’t been tested
 
-These notes explain which checks were run on this project and which ones still need to be done.
+This file describes the current source package. Syntax checks are useful, but they do not prove that Discord commands or live provider requests will work in production.
 
-## Checks that passed
+## Checks completed for this update
 
-- `python -m compileall -q bot.py config.py bot tests` — passed.
+- `python -m compileall -q .` — passed for all Python files.
 - `bash -n deploy/setup_ubuntu.sh` — passed.
-- `PYTHONPATH=/tmp/anime-tracker-test-stubs:$PWD pytest -q` — **21 tests passed** using temporary, test-only compatibility shims for `discord.py`, `aiosqlite`, and `feedparser`. The shims were kept outside the project and are not included in the release archive.
+- ZIP integrity check — passed when the release archive was created.
+- Targeted local check of the `/random` provider query — verifies that random discovery uses compact fields and does not request long descriptions in a 25-title response.
+- Static source inspection — `/track add` and `/track search` expose a required source choice including `MangaDex (manga only)`; the old advanced `/notify` commands are no longer registered.
 
-## What those checks don’t prove
+## What still needs a real environment
 
-The environment could not reach the Python package index (DNS/network resolution failed), so the real dependencies could not be installed here. Those tests check the database, service, and provider logic against mock versions of the libraries. They do **not** prove the bot works with the real installed `discord.py`, `aiosqlite`, and `feedparser` packages. No Discord credentials, Oracle Cloud account, live Discord guild, or live API integration was available, and no cloud deployment was performed.
+The full automated test suite could not be run here because `aiosqlite` and `discord.py` are not installed, and package downloads are unavailable in this environment. No live Discord server or live AniList/MangaDex integration test was performed. Do not treat static checks as proof of zero bugs.
 
-After installing the requirements in a normal networked Python 3.11+ environment, run:
+After installing dependencies in a normal Python 3.11+ environment, run:
 
 ```bash
 python -m pip install -r requirements-dev.txt
@@ -20,35 +22,12 @@ python -m compileall -q bot.py config.py bot tests
 pytest -q
 ```
 
-Then test command registration and notification delivery in a private Discord test server before inviting the bot to other servers.
+Then restart the bot and check the startup log for command-sync errors. Global Discord slash-command updates can take time to appear. For quick testing, configure `DEV_GUILD_ID` for a private test server and sync there first.
 
+## Current behavior notes
 
-## Channel routing update (15 October 2026)
-
-Added configurable category routes (`episodes`, `chapters`, `news`, `schedule`) and per-title overrides, each with an independent channel and mention target. Resolution order is title override → category default → legacy server-wide channel/target. Added `/notify route`, `/notify title-route`, `/notify routes`, and `/notify route-clear`. Per-route `@everyone` requires administrator permission and the exact `ENABLE` confirmation. Added tests for route precedence, server isolation, removal/fallback, and explicit everyone enablement.
-
-The updated Python source passed `compileall`. The pytest suite was not executed in this pass because `aiosqlite` is not installed in the current environment and package downloads are unavailable.
-
-## Extra archive checks (15 October 2026)
-
-A follow-up static audit of the release archive passed ZIP integrity, Python AST/compile checks, and shell syntax checks. The environment did not contain the real `discord.py`, `aiosqlite`, or `feedparser` packages, so the full dependency-backed tests and a vulnerability scan could not be performed. See `SECURITY_AUDIT.md` for scope, limitations, and production recommendations. This is not a guarantee of zero bugs or leaks.
-
-
-## Making notification setup easier (20 October 2026)
-
-Added `/notify guide` for in-Discord instructions, `/notify show` as a quick per-title channel plus optional role setup, and `/notify test-title` to check a tracked title's effective episode/chapter route and send a real test message using the configured mention policy. The test command refuses to send when all-title notifications or the relevant episode/chapter preference is disabled; it does not create a release event or write notification history. Test messages can produce a real role/user ping.
-
-- `python -m compileall -q bot.py bot tests`: passed after the notification changes.
-- `python -m pytest -q`: not run to completion because `aiosqlite` is not installed in this environment (`ModuleNotFoundError`).
-- Added tests for title-specific channel/role test delivery and disabled-title behavior; these tests still need to be executed in an environment with the actual project dependencies installed.
-- No live Discord command sync, permission check, or delivery test was possible. Do not treat this static validation as proof of live behavior.
-
-
-## Making the commands easier to understand (20 October 2026)
-
-Added `COMMANDS.md` covering every registered command, options, examples, permissions, notification route precedence, and test-message behavior. Updated `/help` to include all notification commands and explain the recommended workflow; improved Discord option descriptions without renaming commands or changing their signatures. Corrected the README API endpoint attribution. Python syntax compilation and static command-inventory checks passed. The test suite could not run because required packages (`aiosqlite`, `discord.py`) are absent in this environment, and package installation is unavailable; live Discord sync/delivery is not verified.
-
-
-## Additional discovery and health checks
-
-The `/random` command now passes optional genre, maximum episode count, and starting year filters to AniList and re-checks returned results locally. `/status` checks database responsiveness and reports the most recent scheduler result and notification counts. These changes have static checks and targeted unit tests added; live API and Discord delivery still need a real deployment test.
+- `/random` requests compact fields for its candidate page to avoid hitting `MAX_RESPONSE_BYTES` because of long synopsis text. After choosing a result, it makes a separate detail request to load the synopsis; if that detail request fails, the pick still works and shows a fallback description.
+- `/track add` and `/track search` require a source choice so MangaDex is visible in the command form. Choose `Manga` and `MangaDex (manga only)` to search MangaDex. MangaDex is not an anime source.
+- The simplified `/notify` group keeps `guide`, `show`, `test-title`, `routes`, `settings`, `title`, `types`, and `quiet-hours`. The old advanced commands are removed from the registered command menu. Existing saved route settings are not deleted and the notification service can still use them as fallbacks.
+- `/notify test-title` sends a real message to the configured route and may ping its role. Run it only where that test is expected.
+- The project has not been deployed to Kerit from this environment.

@@ -1,7 +1,7 @@
 # Security and reliability notes
 
-Audit date: 2026-10-20
-Artifact audited: `anime-manga-tracker.zip` as supplied in this session
+Audit date: 2026-10-23
+Artifact audited: current one-minute-polling source package plus the fixes documented below
 
 ## What I checked
 
@@ -57,3 +57,11 @@ Static syntax compilation passed. The automated tests added for this update coul
 ## Command guide and help menu (20 October 2026)
 
 Added `COMMANDS.md` as the full slash-command reference, expanded `/help` so it covers the complete current command groups (including the recommended notification setup and the fact that test commands may ping), and made slash-command descriptions more action-oriented. Corrected the README's MyAnimeList/AniList endpoint attribution. Static syntax checks were run after these documentation and help updates; the real dependency-backed test suite and live Discord registration remain unverified in this environment.
+
+
+## Follow-up review (23 October 2026)
+
+- `/random` now uses a compact AniList candidate query that excludes long descriptions from the multi-title page. It then fetches details for the chosen result separately, with a fallback if that detail request fails. This addresses the likely cause of `ValueError` from exceeding the configured response-size cap; live API confirmation still needs to be done on the host.
+- `/track add` and `/track search` now require an explicit source choice. The menu includes `MangaDex (manga only)` and returns a clear message if MangaDex is selected with Anime. This makes the MangaDex option visible in the command form instead of relying on an optional field.
+- The slash-command menu now keeps only the everyday notification commands: `guide`, `show`, `test-title`, `routes`, `settings`, `title`, `types`, and `quiet-hours`. Existing saved route rows are not deleted.
+- The current source passed Python compilation, shell syntax validation, a targeted mocked random-provider regression check, a static check of MangaDex source choice declarations, and a static inventory check of the registered notify commands. Full dependency-backed tests and live Discord/API checks remain unverified because `discord.py`, `aiosqlite`, and `feedparser` are unavailable in this environment.

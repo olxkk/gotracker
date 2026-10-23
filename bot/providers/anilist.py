@@ -17,6 +17,16 @@ MEDIA_FIELDS = """
  nextAiringEpisode { airingAt timeUntilAiring episode }
 """
 
+# Random discovery only needs compact card fields. Including descriptions here can make
+# a single 25-result response exceed the configured response-size limit.
+RANDOM_MEDIA_FIELDS = """
+ id type format status episodes chapters genres siteUrl
+ title { romaji english native }
+ coverImage { large }
+ startDate { year month day } endDate { year month day }
+ nextAiringEpisode { airingAt timeUntilAiring episode }
+"""
+
 
 class AniListProvider:
     name = "AniList"
@@ -140,7 +150,7 @@ class AniListProvider:
             sort = "SCORE_DESC" if category == "HIGH_RATED" else "POPULARITY_DESC"
             graphql = (
                 f"query ({', '.join(declarations)}) {{ Page(page: $page, perPage: $perPage) "
-                f"{{ media({', '.join(filters)}, sort: {sort}) {{{MEDIA_FIELDS} averageScore}} }} }}"
+                f"{{ media({', '.join(filters)}, sort: {sort}) {{{RANDOM_MEDIA_FIELDS} averageScore}} }} }}"
             )
             data = await self._graphql(graphql, variables)
             rows = data.get("Page", {}).get("media", [])

@@ -10,19 +10,19 @@ In Discord, type `/` and pick a command from the menu. If a title field offers a
 4. Try `/notify test-title` to check the setup. It sends a real test message, and it may ping the configured role or user, so run it somewhere that’s okay.
 5. Check `/track list` and `/notify routes` to make sure everything saved.
 
-Most settings commands need the **Manage Server** permission. `/notify everyone` needs **Administrator**. Everyone can use the usual browse and info commands, such as search, release info, news, `/random`, `/help`, and status.
+The notification setup commands `/notify show`, `/notify test-title`, `/notify title`, `/notify types`, and `/notify quiet-hours` require **Manage Server** permission. Everyone can use the usual browse and info commands, such as search, release info, news, `/random`, `/help`, and status.
 
 ## Finding and tracking shows: `/track`
 
 | Command | Options | What it does |
 |---|---|---|
-| `/track add` | `title`, `media_format`, optional `source` | Searches catalogues and opens a selection menu. Select the exact result to add it; a search result is never auto-added. Sources: all, AniList, Kitsu, MyAnimeList, or MangaDex (manga only). |
+| `/track add` | `title`, `media_format`, `source` | Searches catalogues and opens a selection menu. Select the exact result to add it; a search result is never auto-added. Sources: default catalogues (AniList, Kitsu, MyAnimeList), AniList, Kitsu, MyAnimeList, or MangaDex (manga only). Choose MangaDex with `media_format:Manga`. |
 | `/track remove` | `title` | Removes one matching title from this server's watchlist. It does not delete the title globally or from other servers. Use autocomplete to avoid ambiguity. |
 | `/track list` | none | Lists this server's tracked titles and known schedule/catalogue information. Large lists are shortened in the display. |
-| `/track search` | `title`, `media_format`, optional `source` | Searches without adding anything. MangaDex is available for manga. |
+| `/track search` | `title`, `media_format`, `source` | Searches without adding anything. Choose `media_format:Manga` and `source:MangaDex (manga only)` to search MangaDex directly. |
 | `/track info` | `title` | Shows catalogue metadata for a tracked title; exact catalogue matches may also be looked up when untracked. |
 
-Example: `/track add title:Cyberpunk media_format:Anime source:AniList`.
+Examples: `/track add title:Cyberpunk media_format:Anime source:AniList` or `/track add title:One Piece media_format:Manga source:MangaDex (manga only)`. The source choice is required so MangaDex is visible in the command form. The default source option searches AniList, Kitsu and MyAnimeList; MangaDex is selected directly.
 
 ## Release dates and history: `/release`
 
@@ -45,43 +45,24 @@ RSS/Atom feeds must be configured in `.env` using `RSS_FEEDS`. The bot does not 
 
 ## Notifications: `/notify`
 
-### The handy everyday commands
+### The commands you'll actually need
 
 | Command | Options | What it does |
 |---|---|---|
-| `/notify guide` | none | Displays the recommended setup steps. |
-| `/notify show` | `title`, `channel`, optional `role` | Sets the channel and optional role for one tracked title. Anime routes episode alerts; manga routes chapter alerts. Leaving `role` empty means no ping. Requires Manage Server. |
-| `/notify test-title` | `title` | Sends a real test through the title's effective episode/chapter route. It checks settings and delivery route, but does not create a fake release or mark a release as delivered. A configured role/user may be pinged. Requires Manage Server. |
-| `/notify settings` | none | Shows the server's fallback notification channel/target, quiet hours, and `@everyone` safety state. |
-| `/notify routes` | none | Lists saved category defaults and title-specific routes. |
-| `/notify preview` | none | Sends a server-default test notification. The configured target may be pinged. Requires Manage Server. |
+| `/notify guide` | none | Shows the short setup steps. Start here if you're new to notifications. |
+| `/notify show` | `title`, `channel`, optional `role` | Picks where one tracked anime or manga sends its episode/chapter alerts. Leave `role` empty for no ping. Requires Manage Server. |
+| `/notify test-title` | `title` | Sends a real test message through that title's saved route. A configured role may be pinged. Requires Manage Server. |
+| `/notify routes` | none | Shows saved destinations, including older routes already stored in the database. |
+| `/notify settings` | none | Shows the server's current defaults and quiet hours. |
+| `/notify title` | `title`, `enabled` | Turns all notifications for one tracked title on or off. Requires Manage Server. |
+| `/notify types` | `title`, optional alert switches | Shows or changes episode, chapter, schedule, delay, hiatus and announcement alerts. Only switches you provide are changed. Requires Manage Server. |
+| `/notify quiet-hours` | `start`, `end`, optional `timezone` | Optional quiet period using 24-hour times, e.g. `22:00` to `07:00` and `Europe/London`. Enter `OFF` for both times to disable. Requires Manage Server. |
 
-### Default settings for the server
+`/notify test-title` sends a real Discord message, not a fake release. If the title has a role configured, the role may be pinged. Run the test in a channel where that ping is expected.
 
-| Command | Options | What it does |
-|---|---|---|
-| `/notify channel` | `channel` | Sets the fallback channel for notifications that have no matching specific route. Requires Manage Server. |
-| `/notify target` | `target` | Chooses the fallback mention mode: none, role, user, or everyone. The selected role/member must already be configured. Requires Manage Server. |
-| `/notify role` | `role` | Sets the fallback role and selects role mentions as the server-wide default. Requires Manage Server. |
-| `/notify user` | `member` | Sets the fallback member and selects user mentions as the server-wide default. Requires Manage Server. |
-| `/notify everyone` | `enabled`, `confirmation` | Explicitly enables/disables `@everyone`. Requires Administrator and exact confirmation `ENABLE` or `DISABLE`. Enabling it also sets it as the server-wide default target; disabling it resets that default to `none` if needed. Use sparingly. |
+The old advanced commands (`route`, `title-route`, `route-clear`, `channel`, `target`, `role`, `user`, `everyone`, and `preview`) are no longer registered, to keep the slash-command menu tidy. Existing route settings in the database are not deleted; `/notify routes` can still display them, and the notification service continues to respect existing saved routes.
 
-### More detailed settings
-
-| Command | Options | What it does |
-|---|---|---|
-| `/notify route` | `category`, `channel`, `target`, optional `role`, `member`, `confirmation` | Sets a fallback route for one category: anime episodes, manga chapters, news/announcements, or schedules/delays. For `target:Role`, select `role`; for `target:User`, select `member`; for everyone, an administrator must enter `ENABLE`. Requires Manage Server. |
-| `/notify title-route` | `title`, `category`, `channel`, `target`, optional `role`, `member`, `confirmation` | Sets a route override for one tracked title and one category. Same target rules as `/notify route`. Requires Manage Server. |
-| `/notify route-clear` | `category`, optional `title` | Without `title`, removes that category's fallback route. With a tracked `title`, removes only that title/category override. Requires Manage Server. |
-| `/notify title` | `title`, `enabled` | Turns all notifications for one tracked title on/off. This is the master switch for that title. Requires Manage Server. |
-| `/notify types` | `title`, optional `episodes`, `chapters`, `schedule_changes`, `delays`, `hiatus`, `announcements` | View current alert types when no switches are supplied, or change only the switches you specify. Omitted switches remain unchanged. Requires Manage Server. |
-| `/notify quiet-hours` | `start`, `end`, optional `timezone` | Sets quiet hours using `HH:MM` 24-hour times and an IANA timezone such as `Europe/London`. Use a window such as `22:00` to `07:00`. Enter `OFF` for both start and end to disable quiet hours. Ordinary alerts are held; official announcements, delays, and hiatus notices may still be sent. Requires Manage Server. |
-
-### If more than one route is set
-
-For a particular show and type of update, the bot uses the show’s own route first. If there isn’t one, it tries the category default, then the older server-wide channel/mention settings. A title route for anime episodes does not automatically configure its news or schedule alerts. Use `/notify routes` to inspect saved routes.
-
-For `@everyone`, Discord's server and channel permissions still apply. The bot must have permission to view/send in the selected channel, and roles/users must still exist. A successful test confirms a message was sent through the selected route; it cannot guarantee every future external release will be detected.
+If a test says alerts are disabled, use `/notify title` and `/notify types` to check the title's settings. If no destination is configured, use `/notify show`. If sending fails, check the bot's `View Channel`, `Send Messages`, and `Embed Links` permissions and confirm the selected role still exists.
 
 ## Other useful commands
 
@@ -95,7 +76,7 @@ For `@everyone`, Discord's server and channel permissions still apply. The bot m
 ## If something isn’t working
 
 - **A title isn't in autocomplete:** add it with `/track add` first, or use `/track search` to find the correct catalogue entry.
-- **No route is configured:** use `/notify show` for a specific title or `/notify channel` for a server-wide fallback.
+- **No route is configured:** use `/notify show` to set a destination for that title.
 - **The test says notifications are disabled:** check `/notify title` and `/notify types` for that title.
 - **A test message cannot be delivered:** check the selected channel and the bot's `View Channel`, `Send Messages`, and (for embeds) `Embed Links` permissions. Check the logs for provider/database errors.
 - **No episode is detected:** check `/release check` and `/status`. Data sources may be delayed or may not provide reliable schedules. MangaDex monitoring is limited to English whole-number chapters in this version.

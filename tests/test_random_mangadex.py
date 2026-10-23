@@ -90,3 +90,26 @@ def test_random_anime_rejects_unknown_genre():
     import asyncio
     with pytest.raises(ValueError, match="Unsupported anime genre"):
         asyncio.run(provider.random_anime("FINISHED", genre="Not A Genre"))
+
+
+@pytest.mark.asyncio
+async def test_random_anime_uses_compact_query_without_description(monkeypatch):
+    provider = AniListProvider(session=None)
+    captured = {}
+
+    async def compact_graphql(query, variables):
+        captured["query"] = query
+        return {"Page": {"media": [{
+            "id": 456, "type": "ANIME", "status": "FINISHED", "episodes": 12,
+            "genres": ["Comedy"], "averageScore": 82,
+            "title": {"english": "Compact Result", "romaji": "Compact Result"},
+            "coverImage": {"large": "https://example.com/cover.jpg"},
+            "siteUrl": "https://anilist.co/anime/456",
+            "startDate": {"year": 2021, "month": 1, "day": 1},
+        }]}}
+
+    monkeypatch.setattr(provider, "_graphql", compact_graphql)
+    result = await provider.random_anime("FINISHED")
+    assert result is not None
+    assert "description(asHtml:false)" not in captured["query"]
+    assert "averageScore" in captured["query"]

@@ -39,9 +39,9 @@ class GeneralCog(commands.Cog):
             value="`title` search configured news feeds · `upcoming` combine tracked schedules and relevant announcements", inline=False)
         embed.add_field(
             name="Notifications — `/notify`",
-            value=("**Start here:** `guide`, `show`, `test-title`, `settings`, `routes`. Advanced: `channel`, `target`, `role`, `user`, "
-                   "`everyone`, `route`, `title-route`, `route-clear`, `title`, `types`, `quiet-hours`, `preview`. "
-                   "`show` sets a title's channel and optional role; `test-title` sends a real test message and can ping the configured target."), inline=False)
+            value=("`guide`, `show`, `test-title`, `routes`, `settings`, `title`, `types`, `quiet-hours`. "
+                   "Start with `guide`, use `show` to set a title's channel and optional role, then `test-title` to check it. "
+                   "The test sends a real message and may ping the configured role."), inline=False)
         embed.add_field(
             name="General",
             value="`/random` choose an anime by status, score, genre, episode count or year · `/status` bot, database, notification and provider health · `/settings` effective settings · `/help` this guide", inline=False)
@@ -84,7 +84,7 @@ class GeneralCog(commands.Cog):
                 int(year) if year is not None else None,
             )
         except Exception as exc:
-            log.warning("Random anime lookup failed: %s", type(exc).__name__)
+            log.warning("Random anime lookup failed (%s): %s", type(exc).__name__, str(exc)[:200])
             await interaction.followup.send(
                 "AniList couldn't find a pick just now. Give it a moment and try again.",
                 allowed_mentions=discord.AllowedMentions.none(),
@@ -107,6 +107,15 @@ class GeneralCog(commands.Cog):
             )
             return
         media, score = result
+        # Random lookup deliberately uses compact fields. Fetch the selected title's full
+        # details separately so a long page of descriptions cannot exceed the response cap.
+        if not media.description:
+            try:
+                detailed = await self.bot.providers.providers["anilist"].get(media.external_id, "ANIME")
+                if detailed is not None:
+                    media = detailed
+            except Exception as exc:
+                log.debug("Could not load synopsis for random pick (%s)", type(exc).__name__)
         embed = discord.Embed(title=media.title[:250], url=media.url, description=(media.description or "No synopsis is available.")[:3500], color=discord.Color.blurple())
         if media.cover_url.startswith(("https://", "http://")):
             embed.set_thumbnail(url=media.cover_url)

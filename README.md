@@ -167,7 +167,7 @@ The automated tests use fake providers/Discord clients and temporary SQLite data
 4. Grant only the permissions needed for your community: View Channels, Send Messages, Embed Links, and (optionally) Read Message History. The bot does not need Administrator. Role mentions may require the role to be mentionable or the bot to have the appropriate role-mention permission. Do not give it Manage Server or Administrator.
 5. Invite the bot to your test server with the generated URL.
 6. Start the bot and use `/help`. Slash-command global registration can take time to appear. For faster testing, set `DEV_GUILD_ID` to your test server ID; the project copies/syncs commands to that guild. Remove/blank it for global registration once ready.
-7. Use `/notify channel` to choose a channel. Set a role/user target or keep `/notify target` at `none`. `@everyone` requires Administrator permission, setting a target explicitly, and typing the exact confirmation `ENABLE`; disabling requires `DISABLE`.
+7. In Discord, run `/notify guide`, then `/notify show` to choose a channel and optional role for each tracked title. Use `/notify test-title` to test a route (it sends a real message and may ping the selected role).
 
 ## Hosting the bot on an Ubuntu server
 
@@ -333,38 +333,23 @@ Common issues:
 - Ordinary notifications respect configured quiet hours. Official announcement events, metadata delays, and hiatus notices bypass quiet hours; see the message displayed when configuring the setting.
 - Historical events older than 48 hours are not automatically replayed. Recent undelivered event records can catch up after restart; notification rows are unique per guild/release key. A crash exactly between sending a message and confirming the DB write can never be made mathematically exactly-once across Discord + SQLite, but reservation records strongly reduce duplicates.
 
-## The easiest way to set up notifications
+## Setting up notifications without the clutter
 
-The notification system keeps the advanced controls, but most servers can use three simple commands. Run these in the Discord server where the bot is installed; server setup commands require **Manage Server** permission.
+The easiest way is to set up each show separately:
 
-1. **Set a server-wide fallback:** run `/notify channel` and choose the channel for ordinary release alerts. Optionally run `/notify role` to choose the default role to ping, or leave the target as `none` for no ping.
-2. **Choose a channel for one title:** run `/notify show`, select a title that is already tracked, choose a channel, and optionally choose a role. Leaving `role` empty means the title sends without a ping. Anime titles route episode alerts; manga titles route chapter alerts. This overrides the matching category default for that title only.
-3. **Test the title:** run `/notify test-title` and select the tracked title. The bot checks whether title and episode/chapter alerts are enabled, resolves the actual route, and sends a test message to that channel. **This is a real message and can ping the configured role/user**, so only run it when that ping is expected. It does not create a fake release event or mark a real release as delivered.
-4. **Check settings:** `/notify routes` lists saved routes; `/notify settings` shows server defaults. `/notify guide` displays these steps inside Discord.
+1. Add the anime or manga with `/track add`.
+2. Run `/notify show`, pick that tracked title, choose a channel, and optionally choose a role to ping. Leave the role blank for no ping.
+3. Run `/notify test-title` to send a real test through that show's route. If a role is configured, the test may ping it, so run the test somewhere that's okay.
+4. Use `/notify routes` to check saved destinations and `/notify settings` to view the server's current defaults.
+5. Use `/notify title` to pause/resume all alerts for a show, `/notify types` to control episode/chapter and other alert types, or `/notify quiet-hours` if you want a quiet period.
 
-If the test says alerts are disabled, use `/notify title` to enable title notifications and `/notify types` to enable episode or chapter alerts. If it reports no channel, use `/notify show` or `/notify channel`. If sending fails, check the bot's `View Channel`, `Send Messages`, and `Embed Links` permissions and confirm the selected role still exists.
+The older advanced route-configuration commands have been removed from the slash-command menu to make setup less confusing. Any routes already saved in your database are kept and will continue to be used. The new simple `/notify show` route takes priority for that title and release type.
 
-## Choosing where notifications go
-
-The bot supports both server-wide category routes and title-specific overrides. Category routes are the defaults; a title-specific route for the same category takes precedence. Categories are `episodes`, `chapters`, `news`, and `schedule`.
-
-Examples (run as a server administrator; the simpler `/notify show` command is recommended for a single title):
-
-- `/notify route category:Anime episodes channel:#anime-releases target:Role role:@Anime Fans`
-- `/notify route category:Manga chapters channel:#manga-releases target:Role role:@Manga Readers`
-- `/notify route category:News and announcements channel:#anime-news target:None — no ping`
-- `/notify title-route title:One Piece category:Anime episodes channel:#one-piece target:Role role:@One Piece`
-- `/notify routes` to inspect all routes
-- `/notify route-clear category:Anime episodes` to remove a category default
-- `/notify route-clear category:Anime episodes title:One Piece` to remove just that title override
-
-`/notify title-route` requires the title to already be tracked in this server. Each route stores its own channel and target, so choosing a role for one category does not affect other categories. Title-specific routes override category defaults, which override the legacy global notification channel/target. `@everyone` routing is accepted only for an administrator and requires the exact confirmation `ENABLE`; Discord mention permissions are explicitly restricted to the selected target.
-
-
+If a test cannot send, check the bot's `View Channel`, `Send Messages`, and `Embed Links` permissions, and make sure the selected role still exists. A successful test confirms the route can send a message; it does not prove that an external provider will detect every future release.
 
 ### Fixes in this source build
 
-- `/track add` and `/track search` accept a `source` choice, including **MangaDex (manga only)**. Leave it as all supported sources to search the existing catalogues.
+- `/track add` and `/track search` require a `source` choice, including **MangaDex (manga only)**. Choose `Manga` as the format and MangaDex as the source to search MangaDex directly; it cannot search anime.
 - `/random` chooses an AniList anime from the selected category: currently releasing, finished, or highly rated (minimum score 1–100, default 75). Optional filters include genre, maximum episode count, and starting year. It displays the AniList link, available synopsis, score, status, episode count, and airing details when available.
 - MangaDex chapter polling stores the initial latest whole-number English chapter as a baseline, then emits a new-chapter event only when a later check detects a higher chapter number. Decimal chapter numbers are intentionally ignored.
 

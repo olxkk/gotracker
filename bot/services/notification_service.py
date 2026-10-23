@@ -37,7 +37,7 @@ class NotificationService:
     async def preview(self, guild_id: int) -> tuple[bool, str]:
         settings = await self.repo.get_guild(guild_id)
         if not settings or not settings.get("notification_channel_id"):
-            return False, "Set a notification channel first with `/notify channel`."
+            return False, "Set a title notification route with `/notify show` first."
         channel = self.bot.get_channel(int(settings["notification_channel_id"]))
         if channel is None:
             try:
@@ -87,7 +87,7 @@ class NotificationService:
             route_description = "server default settings"
         if not channel_id:
             return False, (f"No channel is configured for **{track.get('title', 'this title')}**. "
-                           "Use `/notify show` to set a title-specific channel and optional role, or `/notify channel` for the server default.")
+                           "Use `/notify show` to set a channel and optional role for this title.")
 
         channel = self.bot.get_channel(int(channel_id))
         if channel is None:
@@ -102,11 +102,11 @@ class NotificationService:
         if target == "role":
             role_id = effective.get("target_role_id")
             if not role_id:
-                return False, "The notification target is set to Role, but no role is selected. Run `/notify role` or `/notify show` to choose one."
+                return False, "The notification target is set to Role, but no role is selected. Run `/notify show` to choose one."
             if guild is not None:
                 role = guild.get_role(int(role_id))
                 if role is None:
-                    return False, "The configured role no longer exists in this server. Run `/notify show` or `/notify title-route` to select a valid role."
+                    return False, "The configured role no longer exists in this server. Run `/notify show` to select a valid role."
                 bot_member = guild.me
                 if not role.mentionable and bot_member is not None:
                     permissions = channel.permissions_for(bot_member) if hasattr(channel, "permissions_for") else None
@@ -117,7 +117,7 @@ class NotificationService:
         if target == "user":
             user_id = effective.get("target_user_id")
             if not user_id:
-                return False, "The notification target is set to User, but no user is selected. Run `/notify user` or `/notify title-route` to choose one."
+                return False, "The notification target is set to User, but no user is selected. Run `/notify show` to choose a valid notification route."
             if guild is not None and guild.get_member(int(user_id)) is None:
                 try:
                     await guild.fetch_member(int(user_id))
