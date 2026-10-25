@@ -74,7 +74,20 @@ class AniListProvider:
                     try:
                         payload = await _json_loads(raw)
                     except Exception as exc:
-                        raise ValueError("AniList returned invalid JSON") from exc
+                        # AniList or an intermediary can occasionally return an empty,
+                        # truncated, or HTML response. Retry these transient parse failures
+                        # just like network/server errors before failing this one check.
+                        content_type = response.headers.get("Content-Type", "unknown")
+                        preview = raw[:120].decode("utf-8", errors="replace")
+                        preview = " ".join(preview.split())
+                        if attempt < 2:
+                            await asyncio.sleep(2 ** attempt)
+                            continue
+                        raise ValueError(
+                            "AniList returned invalid JSON after 3 attempts "
+                            f"(HTTP {response.status}, content-type {content_type!r}, "
+                            f"body starts {preview[:100]!r})"
+                        ) from exc
                     if payload.get("errors"):
                         message = str(payload["errors"][0].get("message", "GraphQL error"))[:200]
                         raise RuntimeError(f"AniList API error: {message}")
