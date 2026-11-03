@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import random
 from typing import Any
 
 import aiohttp
@@ -12,7 +13,7 @@ from .base import MediaTitle, read_limited
 class MyAnimeListProvider:
     name = "MyAnimeList"
     BASE_URL = "https://api.myanimelist.net/v2"
-    ANIME_FIELDS = "id,title,main_picture,start_date,end_date,synopsis,status,num_episodes,media_type"
+    ANIME_FIELDS = "id,title,main_picture,start_date,end_date,synopsis,status,num_episodes,media_type,mean,genres,broadcast"
     MANGA_FIELDS = "id,title,main_picture,start_date,end_date,synopsis,status,num_chapters,media_type"
 
     def __init__(self, client_id: str = "", session: aiohttp.ClientSession | None = None, timeout: int = 15, max_bytes: int = 2_000_000):
@@ -68,6 +69,49 @@ class MyAnimeListProvider:
             if node:
                 result.append(_from_mal(node, media_format))
         return result
+
+    async def random_anime(
+        self, category: str, minimum_score: int = 75, genre: str | None = None,
+        max_episodes: int | None = None, year: int | None = None,
+    ) -> tuple[MediaTitle, int] | None:
+        """Pick from MyAnimeList rankings; no AniList calls or ID conversion."""
+        category = str(category).upper()
+        if category not in {"RELEASING", "FINISHED", "HIGH_RATED"}:
+            raise ValueError("Unsupported random anime category")
+        ranking_type = "airing" if category == "RELEASING" else "all"
+        payload = await self._get_json("anime/ranking", {
+            "ranking_type": ranking_type, "limit": "100",
+            "fields": "id,title,main_picture,start_date,end_date,synopsis,status,num_episodes,mean,genres",
+        })
+        rows = payload.get("data", [])
+        eligible: list[tuple[dict[str, Any], int]] = []
+        for entry in rows:
+            row = entry.get("node", {}) if isinstance(entry, dict) else {}
+            if not row:
+                continue
+            status = str(row.get("status") or "").lower()
+            if category == "RELEASING" and status != "currently_airing":
+                continue
+            if category == "FINISHED" and status != "finished_airing":
+                continue
+            score = row.get("mean")
+            score100 = round(float(score) * 10) if isinstance(score, (int, float)) else 0
+            if category == "HIGH_RATED" and score100 < int(minimum_score):
+                continue
+            episodes = row.get("num_episodes")
+            if max_episodes is not None and (not isinstance(episodes, int) or episodes > int(max_episodes)):
+                continue
+            start = str(row.get("start_date") or "")
+            if year is not None and not start.startswith(f"{int(year):04d}-"):
+                continue
+            genres = [str(item.get("name", "")) for item in row.get("genres", []) if isinstance(item, dict)]
+            if genre and genre not in genres:
+                continue
+            eligible.append((row, score100))
+        if not eligible:
+            return None
+        row, score = random.choice(eligible)
+        return _from_mal(row, "ANIME"), score
 
     async def get(self, external_id: str, media_format: str = "ANIME") -> MediaTitle | None:
         if not self.client_id or not str(external_id).isdigit():
