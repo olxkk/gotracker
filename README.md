@@ -351,7 +351,7 @@ If a test cannot send, check the bot's `View Channel`, `Send Messages`, and `Emb
 ### Fixes in this source build
 
 - `/track add` and `/track search` require a `source` choice, including **MangaDex (manga only)**. Choose `Manga` as the format and MangaDex as the source to search MangaDex directly; it cannot search anime.
-- `/random` chooses an AniList anime from the selected category: currently releasing, finished, or highly rated (minimum score 1–100, default 75). Optional filters include genre, maximum episode count, and starting year. It displays the AniList link, available synopsis, score, status, episode count, and airing details when available.
+- `/random` chooses a MyAnimeList anime from the selected category: currently airing, finished airing, or highly rated (minimum score 1–100, default 75). Optional filters include genre, maximum episode count, and starting year. It displays the MAL link, available synopsis, score, status, and episode count.
 - MangaDex chapter polling stores the initial latest whole-number English chapter as a baseline, then emits a new-chapter event only when a later check detects a higher chapter number. Decimal chapter numbers are intentionally ignored.
 
 `/random` also supports optional genre, episode-count, and starting-year filters. `/status` includes database, recent notification, and provider health information.
