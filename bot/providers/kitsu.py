@@ -6,7 +6,7 @@ from typing import Any
 
 import aiohttp
 
-from .base import MediaTitle
+from .base import MediaTitle, read_limited
 
 BASE_URL = "https://kitsu.io/api/edge"
 
@@ -26,7 +26,7 @@ class KitsuProvider:
             try:
                 async with self.session.get(f"{BASE_URL}/{path}", params=params, timeout=self.timeout,
                                            headers={"Accept": "application/vnd.api+json", "User-Agent": "AnimeMangaTracker/1.0"}) as response:
-                    raw = await response.content.read(self.max_bytes + 1)
+                    raw = await read_limited(response, self.max_bytes)
                     if len(raw) > self.max_bytes:
                         raise ValueError("Kitsu response exceeded configured size limit")
                     if response.status == 429 and attempt < 2:
