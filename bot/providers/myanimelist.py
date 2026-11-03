@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import json
 import random
+from datetime import datetime, time as clock_time, timedelta
+from zoneinfo import ZoneInfo
 from typing import Any
 
 import aiohttp
@@ -135,6 +137,7 @@ def _from_mal(row: dict[str, Any], media_format: str) -> MediaTitle:
             "not_yet_aired": "NOT_YET_RELEASED"
         }.get(str(row.get("status") or "").lower(), str(row.get("status") or "UNKNOWN").upper()),
         episodes=_int_or_none(row.get("num_episodes")), chapters=_int_or_none(row.get("num_chapters")),
+        next_airing_at=_next_broadcast_timestamp(row.get("broadcast")) if fmt == "ANIME" else None,
         start_date=str(row.get("start_date") or ""), end_date=str(row.get("end_date") or ""),
         source_url=f"https://myanimelist.net/{'manga' if fmt == 'MANGA' else 'anime'}/{ident}",
     )
@@ -145,3 +148,32 @@ def _int_or_none(value: Any) -> int | None:
         return int(value) if value is not None else None
     except (TypeError, ValueError):
         return None
+
+
+
+def _next_broadcast_timestamp(value: Any) -> int | None:
+    """Estimate the next weekly MAL broadcast in Japan time; it is not a confirmed release."""
+    if not isinstance(value, dict):
+        return None
+    day = str(value.get("day_of_the_week") or "").strip().lower()
+    if day.endswith("s"):
+        day = day[:-1]
+    weekdays = {
+        "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3,
+        "friday": 4, "saturday": 5, "sunday": 6,
+    }
+    if day not in weekdays:
+        return None
+    raw_time = str(value.get("start_time") or "").strip()
+    try:
+        hour, minute = (int(part) for part in raw_time.split(":", 1))
+        broadcast_time = clock_time(hour, minute)
+    except (TypeError, ValueError):
+        return None
+    tokyo = ZoneInfo("Asia/Tokyo")
+    now = datetime.now(tokyo)
+    days_ahead = (weekdays[day] - now.weekday()) % 7
+    candidate = datetime.combine(now.date() + timedelta(days=days_ahead), broadcast_time, tzinfo=tokyo)
+    if candidate <= now:
+        candidate += timedelta(days=7)
+    return int(candidate.timestamp())
