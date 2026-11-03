@@ -111,7 +111,7 @@ class GeneralCog(commands.Cog):
         # details separately so a long page of descriptions cannot exceed the response cap.
         if not media.description:
             try:
-                detailed = await self.bot.providers.providers["anilist"].get(media.external_id, "ANIME")
+                detailed = await self.bot.providers.providers[media.provider].get(media.external_id, "ANIME")
                 if detailed is not None:
                     media = detailed
             except Exception as exc:
