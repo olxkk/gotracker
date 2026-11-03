@@ -67,3 +67,41 @@ async def test_bounded_reader_rejects_oversized_response():
 
     with pytest.raises(ValueError, match="size limit"):
         await read_limited(Response(), 5)
+
+
+@pytest.mark.asyncio
+async def test_default_anime_search_uses_mal_before_fallbacks():
+    mal_title = _from_mal({"id": 101, "title": "Primary MAL"}, "ANIME")
+    kitsu_title = _from_kitsu({"id": "202", "attributes": {"canonicalTitle": "Fallback Kitsu"}}, "ANIME")
+    anilist_title = _from_anilist({"id": 303, "type": "ANIME", "title": {"romaji": "Last fallback"}})
+    providers = ProviderRegistry(
+        FakeProvider("anilist", [anilist_title]),
+        FakeProvider("kitsu", [kitsu_title]),
+        FakeProvider("myanimelist", [mal_title]),
+    )
+    results = await providers.search("title", "ANIME", limit=10)
+    assert [item.provider for item in results] == ["myanimelist", "kitsu", "anilist"]
+
+
+@pytest.mark.asyncio
+async def test_default_manga_search_uses_mangadex_before_catalogue_fallbacks():
+    manga = MediaTitle("mangadex", "00000000-0000-4000-8000-000000000001",
+                       "MangaDex primary", "MANGA", "https://mangadex.org/title/00000000-0000-4000-8000-000000000001")
+    kitsu_title = _from_kitsu({"id": "202", "attributes": {"canonicalTitle": "Kitsu fallback"}}, "MANGA")
+    anilist_title = _from_anilist({"id": 303, "type": "MANGA", "title": {"romaji": "AniList fallback"}})
+    class MangaDexFake(FakeProvider):
+        pass
+    providers = ProviderRegistry(
+        FakeProvider("anilist", [anilist_title]),
+        FakeProvider("kitsu", [kitsu_title]),
+        FakeProvider("myanimelist"),
+        MangaDexFake("mangadex", [manga]),
+    )
+    results = await providers.search("title", "MANGA", limit=10)
+    assert [item.provider for item in results] == ["mangadex", "kitsu", "anilist"]
+
+
+def test_mal_currently_airing_status_normalizes_to_releasing():
+    media = _from_mal({"id": 42, "title": "Airing", "status": "currently_airing"}, "ANIME")
+    assert media.provider == "myanimelist"
+    assert media.status == "RELEASING"
