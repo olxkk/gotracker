@@ -63,14 +63,14 @@ async def test_ambiguous_same_title_is_not_silently_removed(repo):
 
 
 @pytest.mark.asyncio
-async def test_cross_provider_duplicate_is_blocked_but_anime_and_manga_are_distinct(repo):
+async def test_cross_provider_selection_migrates_anime_and_keeps_formats_distinct(repo):
     anime_anilist = MediaTitle("anilist", "777", "Same Name", "ANIME", "https://anilist.co/anime/777")
     anime_kitsu = MediaTitle("kitsu", "888", "Same Name", "ANIME", "https://kitsu.io/anime/888")
     manga = MediaTitle("anilist", "999", "Same Name", "MANGA", "https://anilist.co/manga/999")
     inserted, _ = await repo.add_track(9, anime_anilist)
     assert inserted
-    duplicate, existing_id = await repo.add_track(9, anime_kitsu)
-    assert not duplicate and existing_id
+    migrated, existing_id = await repo.add_track(9, anime_kitsu)
+    assert migrated and existing_id
     manga_inserted, _ = await repo.add_track(9, manga)
     assert manga_inserted
-    assert [(row['format'], row['provider']) for row in await repo.list_tracks(9)] == [('ANIME', 'anilist'), ('MANGA', 'anilist')]
+    assert [(row['format'], row['provider']) for row in await repo.list_tracks(9)] == [('ANIME', 'kitsu'), ('MANGA', 'anilist')]

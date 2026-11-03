@@ -23,9 +23,10 @@ class ProviderRegistry:
             if provider is None or (key == "mangadex" and str(media_format).upper() != "MANGA"):
                 return []
             return await provider.search(query, media_format, limit=max(1, min(limit, 10)))
-        # AniList is primary for anime schedule data. MangaDex is the default manga
-        # catalogue so newly selected manga use UUIDs that the chapter feed understands.
-        keys = ("mangadex", "anilist", "kitsu", "myanimelist") if str(media_format).upper() == "MANGA" else ("anilist", "kitsu", "myanimelist")
+        # MyAnimeList is the primary anime catalogue. MangaDex is the primary manga
+        # catalogue because its UUIDs map directly to its chapter feed. AniList is
+        # fallback-only; it must never outrank either selected primary source.
+        keys = ("mangadex", "myanimelist", "kitsu", "anilist") if str(media_format).upper() == "MANGA" else ("myanimelist", "kitsu", "anilist")
         for key in keys:
             try:
                 results = await self.providers[key].search(query, media_format, limit=max(1, min(limit, 8)))
@@ -60,6 +61,10 @@ class ReleaseService:
         if fresh is None:
             return None, []
         events: list[ReleaseItem] = []
+        schedule_source = {
+            "anilist": "AniList airing schedule",
+            "myanimelist": "MyAnimeList weekly broadcast estimate",
+        }.get(provider, f"{provider} schedule metadata")
         previous_at = old.get("next_airing_at") if old else None
         previous_ep = old.get("next_episode") if old else None
         if old and fresh.format == "ANIME" and previous_at and fresh.next_airing_at != previous_at:
@@ -70,8 +75,8 @@ class ReleaseService:
                 # A schedule advancing proves only that the planned time passed, not that a platform made it available.
                 key = _key(provider, external_id, "episode_window_passed", previous_ep, previous_at)
                 events.append(ReleaseItem(key, fresh.title, fresh.format, "episode_window_passed", previous_ep, previous_at,
-                                          "unverified", "AniList airing schedule", fresh.url,
-                                          "The scheduled airing window has passed. Availability is not verified by AniList.", False))
+                                          "unverified", schedule_source, fresh.url,
+                                          "The scheduled airing window has passed. Availability is not verified by the catalogue source.", False))
             elif fresh.next_airing_at and previous_ep == fresh_ep:
                 changed_at = int(fresh.next_airing_at)
                 delay = changed_at > previous_at + 60
@@ -79,12 +84,12 @@ class ReleaseService:
                 key = _key(provider, external_id, event_type, fresh_ep, changed_at)
                 summary = "The next airing time moved later; this is a schedule-derived delay and is not an official announcement." if delay else "The airing schedule changed; verify the date at the linked source."
                 events.append(ReleaseItem(key, fresh.title, fresh.format, event_type, fresh_ep, changed_at,
-                                          "estimated", "AniList airing schedule", fresh.url, summary, False))
+                                          "estimated", schedule_source, fresh.url, summary, False))
             elif fresh.next_airing_at and fresh_ep != previous_ep:
                 changed_at = int(fresh.next_airing_at)
                 key = _key(provider, external_id, "schedule_change", fresh_ep, changed_at)
                 events.append(ReleaseItem(key, fresh.title, fresh.format, "schedule_change", fresh_ep, changed_at,
-                                          "scheduled", "AniList airing schedule", fresh.url,
+                                          "scheduled", schedule_source, fresh.url,
                                           "The provider advanced to a different upcoming episode schedule; availability of the previous episode is not verified.", False))
         # A fresh entry can show upcoming schedule data, but the initial tracked snapshot is baseline-only.
         if old and fresh.format == "ANIME" and fresh.next_airing_at and int(fresh.next_airing_at) > now:
@@ -93,8 +98,8 @@ class ReleaseService:
             if schedule_changed and number_changed and int(fresh.next_airing_at) <= now + 14 * 86400:
                 key = _key(provider, external_id, "upcoming_episode", fresh.next_episode, fresh.next_airing_at)
                 events.append(ReleaseItem(key, fresh.title, fresh.format, "upcoming_episode", fresh.next_episode, fresh.next_airing_at,
-                                          "scheduled", "AniList airing schedule", fresh.url,
-                                          "Scheduled airing time from AniList; availability is not confirmed.", False))
+                                          "scheduled", schedule_source, fresh.url,
+                                          "Scheduled airing estimate from the selected provider; availability is not confirmed.", False))
         if old and old.get("status") and str(old.get("status")).upper() != fresh.status.upper():
             old_status = str(old.get("status")).upper()
             new_status = fresh.status.upper()
@@ -108,24 +113,58 @@ class ReleaseService:
             if event_type:
                 key = _key(provider, external_id, event_type, None, now)
                 events.append(ReleaseItem(key, fresh.title, fresh.format, event_type, None, now, "unverified",
-                                          "AniList metadata status", fresh.url,
+                                          f"{provider} catalogue status", fresh.url,
                                           f"Catalog status changed from {old_status} to {new_status}. This is a metadata status change, not a separately verified official announcement.", False))
-        # MangaDex's catalogue doesn't supply chapter totals. Poll its chapter feed and
-        # emit a deduplicated event when the highest whole English chapter advances.
+        # Provider catalogue totals are useful progress signals for MAL, Kitsu and
+        # AniList, but they do not prove an exact publication time. Report increases
+        # explicitly as unverified catalogue updates, never as confirmed releases.
+        if old:
+            if fresh.format == "ANIME":
+                previous_count = old.get("episodes")
+                current_count = fresh.episodes
+                event_type = "new_episode"
+                label = "episode"
+            else:
+                previous_count = old.get("chapters")
+                current_count = fresh.chapters
+                event_type = "new_chapter"
+                label = "chapter"
+            if previous_count is not None and current_count is not None:
+                try:
+                    previous_count = int(previous_count)
+                    current_count = int(current_count)
+                except (TypeError, ValueError):
+                    previous_count = current_count = None
+                if previous_count is not None and current_count is not None and current_count > previous_count:
+                    source_name = {
+                        "anilist": "AniList catalogue",
+                        "kitsu": "Kitsu catalogue",
+                        "myanimelist": "MyAnimeList catalogue",
+                        "mangadex": "MangaDex catalogue",
+                    }.get(provider, f"{provider} catalogue")
+                    key = _key(provider, external_id, event_type, current_count, None)
+                    events.append(ReleaseItem(
+                        key, fresh.title, fresh.format, event_type, current_count, None,
+                        "unverified", source_name, fresh.url,
+                        f"The catalogue count increased from {previous_count} to {current_count} {label}s. "
+                        "This confirms a catalogue update, not the exact release time or availability.",
+                        False,
+                    ))
+
+        # MangaDex's catalogue does not expose a reliable chapter total. Its English
+        # chapter feed is the primary progress signal. Feed errors must bubble up so
+        # scheduler health records a failed check and the previous snapshot is retained.
         if fresh.format == "MANGA" and provider == "mangadex":
             implementation = self.providers.get_provider("mangadex")
             if implementation and hasattr(implementation, "latest_english_chapter"):
-                try:
-                    chapter_number, chapter_id, chapter_url = await implementation.latest_english_chapter(external_id)
-                except Exception:
-                    chapter_number = chapter_id = chapter_url = None
+                chapter_number, chapter_id, chapter_url = await implementation.latest_english_chapter(external_id)
                 if chapter_number is not None:
                     previous_chapter = (old or {}).get("chapters")
                     fresh.chapters = int(chapter_number)
                     if old and previous_chapter is not None and int(previous_chapter) < int(chapter_number):
                         chapter_link = chapter_url or fresh.url
-                        key = _key(provider, external_id, "new_chapter", int(chapter_number), now)
-                        events.append(ReleaseItem(key, fresh.title, "MANGA", "new_chapter", int(chapter_number), now,
+                        key = _key(provider, external_id, "new_chapter", int(chapter_number), None)
+                        events.append(ReleaseItem(key, fresh.title, "MANGA", "new_chapter", int(chapter_number), None,
                                                   "verified", "MangaDex English chapter feed", chapter_link,
                                                   f"MangaDex lists English chapter {int(chapter_number)}.", False))
         await self.repo.save_media(fresh, checked_at=now)

@@ -2,17 +2,20 @@ from __future__ import annotations
 
 import asyncio
 import json
+import random
+from datetime import datetime, time as clock_time, timedelta
+from zoneinfo import ZoneInfo
 from typing import Any
 
 import aiohttp
 
-from .base import MediaTitle
+from .base import MediaTitle, read_limited
 
 
 class MyAnimeListProvider:
     name = "MyAnimeList"
     BASE_URL = "https://api.myanimelist.net/v2"
-    ANIME_FIELDS = "id,title,main_picture,start_date,end_date,synopsis,status,num_episodes,media_type"
+    ANIME_FIELDS = "id,title,main_picture,start_date,end_date,synopsis,status,num_episodes,media_type,mean,genres,broadcast"
     MANGA_FIELDS = "id,title,main_picture,start_date,end_date,synopsis,status,num_chapters,media_type"
 
     def __init__(self, client_id: str = "", session: aiohttp.ClientSession | None = None, timeout: int = 15, max_bytes: int = 2_000_000):
@@ -30,7 +33,7 @@ class MyAnimeListProvider:
             try:
                 async with self.session.get(f"{self.BASE_URL}/{path}", params=params, timeout=self.timeout,
                                            headers={"X-MAL-CLIENT-ID": self.client_id, "Accept": "application/json"}) as response:
-                    raw = await response.content.read(self.max_bytes + 1)
+                    raw = await read_limited(response, self.max_bytes)
                     if len(raw) > self.max_bytes:
                         raise ValueError("MyAnimeList response exceeded configured size limit")
                     if response.status == 429 and attempt < 2:
@@ -69,6 +72,49 @@ class MyAnimeListProvider:
                 result.append(_from_mal(node, media_format))
         return result
 
+    async def random_anime(
+        self, category: str, minimum_score: int = 75, genre: str | None = None,
+        max_episodes: int | None = None, year: int | None = None,
+    ) -> tuple[MediaTitle, int] | None:
+        """Pick from MyAnimeList rankings; no AniList calls or ID conversion."""
+        category = str(category).upper()
+        if category not in {"RELEASING", "FINISHED", "HIGH_RATED"}:
+            raise ValueError("Unsupported random anime category")
+        ranking_type = "airing" if category == "RELEASING" else "all"
+        payload = await self._get_json("anime/ranking", {
+            "ranking_type": ranking_type, "limit": "100",
+            "fields": "id,title,main_picture,start_date,end_date,synopsis,status,num_episodes,mean,genres",
+        })
+        rows = payload.get("data", [])
+        eligible: list[tuple[dict[str, Any], int]] = []
+        for entry in rows:
+            row = entry.get("node", {}) if isinstance(entry, dict) else {}
+            if not row:
+                continue
+            status = str(row.get("status") or "").lower()
+            if category == "RELEASING" and status != "currently_airing":
+                continue
+            if category == "FINISHED" and status != "finished_airing":
+                continue
+            score = row.get("mean")
+            score100 = round(float(score) * 10) if isinstance(score, (int, float)) else 0
+            if category == "HIGH_RATED" and score100 < int(minimum_score):
+                continue
+            episodes = row.get("num_episodes")
+            if max_episodes is not None and (not isinstance(episodes, int) or episodes > int(max_episodes)):
+                continue
+            start = str(row.get("start_date") or "")
+            if year is not None and not start.startswith(f"{int(year):04d}-"):
+                continue
+            genres = [str(item.get("name", "")) for item in row.get("genres", []) if isinstance(item, dict)]
+            if genre and genre not in genres:
+                continue
+            eligible.append((row, score100))
+        if not eligible:
+            return None
+        row, score = random.choice(eligible)
+        return _from_mal(row, "ANIME"), score
+
     async def get(self, external_id: str, media_format: str = "ANIME") -> MediaTitle | None:
         if not self.client_id or not str(external_id).isdigit():
             return None
@@ -86,8 +132,12 @@ def _from_mal(row: dict[str, Any], media_format: str) -> MediaTitle:
         provider="myanimelist", external_id=ident, title=str(row.get("title") or f"MyAnimeList #{ident}")[:250], format=fmt,
         url=f"https://myanimelist.net/{'manga' if fmt == 'MANGA' else 'anime'}/{ident}",
         cover_url=str(picture.get("large") or picture.get("medium") or "")[:1000],
-        description=str(row.get("synopsis") or "")[:1500], status=str(row.get("status") or "UNKNOWN").upper(),
+        description=str(row.get("synopsis") or "")[:1500], status={
+            "currently_airing": "RELEASING", "finished_airing": "FINISHED",
+            "not_yet_aired": "NOT_YET_RELEASED"
+        }.get(str(row.get("status") or "").lower(), str(row.get("status") or "UNKNOWN").upper()),
         episodes=_int_or_none(row.get("num_episodes")), chapters=_int_or_none(row.get("num_chapters")),
+        next_airing_at=_next_broadcast_timestamp(row.get("broadcast")) if fmt == "ANIME" else None,
         start_date=str(row.get("start_date") or ""), end_date=str(row.get("end_date") or ""),
         source_url=f"https://myanimelist.net/{'manga' if fmt == 'MANGA' else 'anime'}/{ident}",
     )
@@ -98,3 +148,32 @@ def _int_or_none(value: Any) -> int | None:
         return int(value) if value is not None else None
     except (TypeError, ValueError):
         return None
+
+
+
+def _next_broadcast_timestamp(value: Any) -> int | None:
+    """Estimate the next weekly MAL broadcast in Japan time; it is not a confirmed release."""
+    if not isinstance(value, dict):
+        return None
+    day = str(value.get("day_of_the_week") or "").strip().lower()
+    if day.endswith("s"):
+        day = day[:-1]
+    weekdays = {
+        "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3,
+        "friday": 4, "saturday": 5, "sunday": 6,
+    }
+    if day not in weekdays:
+        return None
+    raw_time = str(value.get("start_time") or "").strip()
+    try:
+        hour, minute = (int(part) for part in raw_time.split(":", 1))
+        broadcast_time = clock_time(hour, minute)
+    except (TypeError, ValueError):
+        return None
+    tokyo = ZoneInfo("Asia/Tokyo")
+    now = datetime.now(tokyo)
+    days_ahead = (weekdays[day] - now.weekday()) % 7
+    candidate = datetime.combine(now.date() + timedelta(days=days_ahead), broadcast_time, tzinfo=tokyo)
+    if candidate <= now:
+        candidate += timedelta(days=7)
+    return int(candidate.timestamp())

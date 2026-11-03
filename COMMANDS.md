@@ -16,13 +16,13 @@ The notification setup commands `/notify show`, `/notify test-title`, `/notify t
 
 | Command | Options | What it does |
 |---|---|---|
-| `/track add` | `title`, `media_format`, `source` | Searches catalogues and opens a selection menu. Select the exact result to add it; a search result is never auto-added. Sources: default catalogues (AniList, Kitsu, MyAnimeList), AniList, Kitsu, MyAnimeList, or MangaDex (manga only). Choose MangaDex with `media_format:Manga`. |
+| `/track add` | `title`, `media_format`, `source` | Searches catalogues and opens a selection menu. Select the exact result to add it; a search result is never auto-added. Sources: default catalogues (MyAnimeList first for anime; MangaDex first for manga, then fallbacks), AniList, Kitsu, MyAnimeList, or MangaDex (manga only). Choose MangaDex with `media_format:Manga`. |
 | `/track remove` | `title` | Removes one matching title from this server's watchlist. It does not delete the title globally or from other servers. Use autocomplete to avoid ambiguity. |
 | `/track list` | none | Lists this server's tracked titles and known schedule/catalogue information. Large lists are shortened in the display. |
 | `/track search` | `title`, `media_format`, `source` | Searches without adding anything. Choose `media_format:Manga` and `source:MangaDex (manga only)` to search MangaDex directly. |
 | `/track info` | `title` | Shows catalogue metadata for a tracked title; exact catalogue matches may also be looked up when untracked. |
 
-Examples: `/track add title:Cyberpunk media_format:Anime source:AniList` or `/track add title:One Piece media_format:Manga source:MangaDex (manga only)`. The source choice is required so MangaDex is visible in the command form. The default source option searches AniList, Kitsu and MyAnimeList; MangaDex is selected directly.
+Examples: `/track add title:Cyberpunk media_format:Anime source:AniList` or `/track add title:One Piece media_format:Manga source:MangaDex (manga only)`. The source choice is required so MangaDex is visible in the command form. The default source option searches MyAnimeList first for anime and MangaDex first for manga; Kitsu and AniList are fallbacks.
 
 ## Release dates and history: `/release`
 

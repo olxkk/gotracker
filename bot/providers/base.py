@@ -61,3 +61,20 @@ class Provider(Protocol):
     async def search(self, query: str, media_format: str = "ANIME", limit: int = 8) -> list[MediaTitle]: ...
 
     async def get(self, external_id: str, media_format: str = "ANIME") -> MediaTitle | None: ...
+
+
+
+async def read_limited(response: Any, max_bytes: int) -> bytes:
+    """Read a complete HTTP response body while enforcing a hard byte limit.
+
+    StreamReader.read(n) may return fewer than n bytes before EOF. Iterating
+    chunks avoids parsing a partial JSON document as though it were complete.
+    """
+    chunks: list[bytes] = []
+    total = 0
+    async for chunk in response.content.iter_chunked(min(65536, max_bytes + 1)):
+        total += len(chunk)
+        if total > max_bytes:
+            raise ValueError("Provider response exceeded configured size limit")
+        chunks.append(chunk)
+    return b"".join(chunks)

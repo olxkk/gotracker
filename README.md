@@ -45,30 +45,31 @@ See [`COMMANDS.md`](COMMANDS.md) for a complete guide to every slash command, ex
 
 ## Where the bot gets its information (and what to expect)
 
-### MyAnimeList (primary catalogue and estimated broadcast schedule)
+### MyAnimeList (primary anime catalogue)
 
 - API reference: <https://myanimelist.net/apiconfig/references/api/v2>
-- Supplies catalogue metadata and, when available, a regular broadcast day/time. The bot estimates the next weekly airing from that schedule using Japan time if MAL does not provide a timezone. This is an estimate, not a confirmed episode date or streaming availability.
-- API rate limits can change or temporarily degrade. Requests are paced conservatively and bounded retries respect rate-limit responses.
+- Default anime searches and /random discovery use MyAnimeList first. /random uses MAL ranking results and applies the selected status, score, genre, episode-count, and year filters.
+- MAL catalogue episode totals can show that its catalogue has changed, but a total is not a live episode-release feed and does not prove when an episode became available. The bot labels count increases as unverified catalogue progress.
+- Set MAL_CLIENT_ID in .env; without it, MAL is disabled and the bot can only use configured fallbacks.
 
-### AniList (fallback catalogue and airing-time source)
+### MangaDex (primary manga chapter monitoring)
 
-- GraphQL endpoint: <https://graphql.anilist.co>
-- Documentation: <https://docs.anilist.co/guide/graphql/>
-- Rate limiting: <https://docs.anilist.co/guide/rate-limiting>
-- Used as a secondary catalogue when MAL returns too few search results. Its `nextAiringEpisode` may provide a more precise airing time for AniList-sourced entries, but MAL-sourced tracks are not silently enriched from AniList.
-
-### MangaDex (manga chapter monitoring)
-
-- Manga search can use the explicit MangaDex source in `/track add` or `/track search`; a MangaDex title URL is accepted too.
+- Default manga searches use MangaDex first. A MangaDex title URL is accepted too.
 - The bot checks MangaDex’s chapter feed for the newest English **whole-number** chapter and emits a chapter notification when that value advances after the initial snapshot.
 - Decimal/special chapter labels and non-English releases are not converted into guessed numbers. This version monitors English whole-number chapters only; availability can differ by translation group.
 - Source: <https://api.mangadex.org> and <https://mangadex.org>.
 
-### `/random` anime picker
+### AniList (fallback catalogue only)
 
-- `/random` lets members choose currently releasing, finished airing, or highly rated anime. The highly-rated category defaults to a minimum AniList average score of 75/100 and can be adjusted. Optional genre, episode-count, and starting-year filters help narrow the pick.
-- Picks come from AniList catalogue results; the command returns title, status, synopsis when available, episode count, cover, and source link. A scheduled airing time is not proof of streaming availability.
+- GraphQL endpoint: <https://graphql.anilist.co>
+- Documentation: <https://docs.anilist.co/guide/graphql/>
+- Rate limiting: <https://docs.anilist.co/guide/rate-limiting>
+- AniList is behind MyAnimeList for anime and behind MangaDex for manga in default search. It is never used to enrich a title tracked under another provider ID. Users may still explicitly choose AniList as an alternate catalogue.
+
+### /random anime picker
+
+- /random uses MyAnimeList ranking results. Members can choose currently airing, finished airing, or highly rated anime. The highly-rated category defaults to a minimum MyAnimeList score of 75/100. Optional genre, episode-count, and starting-year filters narrow the pick.
+- The returned score is MAL's 10-point mean converted to a 100-point display scale. A catalogue score or episode total is not proof of streaming availability.
 
 ### Kitsu
 
@@ -76,11 +77,11 @@ See [`COMMANDS.md`](COMMANDS.md) for a complete guide to every slash command, ex
 - Documentation: <https://kitsu.docs.apiary.io/>
 - Supplies fallback anime/manga title searches and catalogue fields. It is not treated as a universal live release feed.
 
-### MyAnimeList API
+### MyAnimeList API details
 
-- API reference: <https://myanimelist.net/apiconfig/references/api/v2>
-- Set `MAL_CLIENT_ID` in `.env`. Obtain the key from the MyAnimeList developer/API settings yourself. Search is disabled when the value is empty. This integration uses a client ID, not your personal password or browser cookies.
-- MAL `num_chapters` is shown as the catalogue chapter count when present. It is not assumed to prove that a chapter was just released. A weekly broadcast estimate cannot determine the next episode number.
+- Set MAL_CLIENT_ID in .env. Obtain the key from the MyAnimeList developer/API settings yourself. Search is disabled when the value is empty. This integration uses a client ID, not your personal password or browser cookies.
+- MAL num_chapters is shown as the catalogue chapter count when present. It is not assumed to prove that a chapter was just released.
+- Episode/chapter count increases are unverified catalogue-progress events, not precise release timestamps.
 
 ### RSS and official news
 
@@ -350,7 +351,7 @@ If a test cannot send, check the bot's `View Channel`, `Send Messages`, and `Emb
 ### Fixes in this source build
 
 - `/track add` and `/track search` require a `source` choice, including **MangaDex (manga only)**. Choose `Manga` as the format and MangaDex as the source to search MangaDex directly; it cannot search anime.
-- `/random` chooses an AniList anime from the selected category: currently releasing, finished, or highly rated (minimum score 1–100, default 75). Optional filters include genre, maximum episode count, and starting year. It displays the AniList link, available synopsis, score, status, episode count, and airing details when available.
+- `/random` chooses a MyAnimeList anime from the selected category: currently airing, finished airing, or highly rated (minimum score 1–100, default 75). Optional filters include genre, maximum episode count, and starting year. It displays the MAL link, available synopsis, score, status, and episode count.
 - MangaDex chapter polling stores the initial latest whole-number English chapter as a baseline, then emits a new-chapter event only when a later check detects a higher chapter number. Decimal chapter numbers are intentionally ignored.
 
 `/random` also supports optional genre, episode-count, and starting-year filters. `/status` includes database, recent notification, and provider health information.

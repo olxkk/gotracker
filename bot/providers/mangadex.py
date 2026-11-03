@@ -7,7 +7,7 @@ from urllib.parse import quote
 
 import aiohttp
 
-from .base import MediaTitle
+from .base import MediaTitle, read_limited
 
 API = "https://api.mangadex.org"
 
@@ -32,7 +32,7 @@ class MangaDexProvider:
                 await asyncio.sleep(delay)
             self._last_request = time.monotonic()
         async with self.session.get(API + path, params=params, timeout=self.timeout, headers={"Accept": "application/json"}) as response:
-            raw = await response.content.read(self.max_bytes + 1)
+            raw = await read_limited(response, self.max_bytes)
             if len(raw) > self.max_bytes:
                 raise ValueError("MangaDex response exceeded configured size limit")
             if response.status == 429:

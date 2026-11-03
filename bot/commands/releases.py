@@ -20,7 +20,7 @@ class ReleasesCog(commands.Cog):
         if track:
             provider, external_id, media_format = track["provider"], str(track["external_id"]), track["format"]
         else:
-            # Search both formats, preferring exact AniList matches because it supplies airing schedules.
+            # Search both formats, preferring the configured primary catalogue for each format.
             results = []
             for fmt in ("ANIME", "MANGA"):
                 try:
@@ -28,9 +28,10 @@ class ReleasesCog(commands.Cog):
                 except Exception:
                     continue
             exact = [item for item in results if item.title.casefold() == title.casefold()]
-            anilist_exact = [item for item in exact if item.provider == "anilist"]
-            if len(anilist_exact) == 1:
-                media = anilist_exact[0]
+            primary_by_format = {"ANIME": "myanimelist", "MANGA": "mangadex"}
+            primary_exact = [item for item in exact if item.provider == primary_by_format.get(item.format)]
+            if len(primary_exact) == 1:
+                media = primary_exact[0]
             elif len(exact) == 1:
                 media = exact[0]
             else:
@@ -55,8 +56,9 @@ class ReleasesCog(commands.Cog):
             embed = discord.Embed(title=f"Next scheduled airing: {clean_text(media.title, 200)}", url=media.url, color=discord.Color.blurple())
             embed.add_field(name="Episode", value=str(media.next_episode if media.next_episode is not None else "Unknown"), inline=True)
             embed.add_field(name="Date and time", value=f"<t:{stamp}:F>\n<t:{stamp}:R> (Discord local timezone)", inline=False)
-            embed.add_field(name="Status", value="Scheduled by AniList; not proof that the episode is available to stream.", inline=False)
-            embed.add_field(name="Source", value=f"[AniList entry]({media.url})", inline=False)
+            schedule_label = "MyAnimeList weekly broadcast estimate" if media.provider == "myanimelist" else "AniList airing schedule"
+            embed.add_field(name="Status", value=f"{schedule_label}; not proof that the episode is available to stream.", inline=False)
+            embed.add_field(name="Source", value=f"[{media.provider.title()} entry]({media.url})", inline=False)
             if media.cover_url.startswith("https://"):
                 embed.set_thumbnail(url=media.cover_url)
             await interaction.followup.send(embed=embed, ephemeral=True)

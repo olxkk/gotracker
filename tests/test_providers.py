@@ -2,6 +2,7 @@ import pytest
 from bot.providers.anilist import _from_anilist
 from bot.providers.kitsu import _from_kitsu
 from bot.providers.myanimelist import _from_mal
+from bot.providers.base import MediaTitle
 from bot.services.release_service import ProviderRegistry
 
 
@@ -35,3 +36,91 @@ async def test_search_falls_back_when_primary_api_fails():
     providers = ProviderRegistry(FakeProvider("anilist", error=RuntimeError("429")), FakeProvider("kitsu", [expected]), FakeProvider("myanimelist"))
     results = await providers.search("Fallback", "ANIME")
     assert len(results) == 1 and results[0].provider == "kitsu"
+
+
+
+@pytest.mark.asyncio
+async def test_bounded_reader_waits_for_complete_response_body():
+    from bot.providers.base import read_limited
+
+    class Content:
+        async def iter_chunked(self, size):
+            yield b'{"data":'
+            yield b'{"ok":true}}'
+
+    class Response:
+        content = Content()
+
+    assert await read_limited(Response(), 64) == b'{"data":{"ok":true}}'
+
+
+@pytest.mark.asyncio
+async def test_bounded_reader_rejects_oversized_response():
+    from bot.providers.base import read_limited
+
+    class Content:
+        async def iter_chunked(self, size):
+            yield b"1234"
+            yield b"5678"
+
+    class Response:
+        content = Content()
+
+    with pytest.raises(ValueError, match="size limit"):
+        await read_limited(Response(), 5)
+
+
+@pytest.mark.asyncio
+async def test_default_anime_search_uses_mal_before_fallbacks():
+    mal_title = _from_mal({"id": 101, "title": "Primary MAL"}, "ANIME")
+    kitsu_title = _from_kitsu({"id": "202", "attributes": {"canonicalTitle": "Fallback Kitsu"}}, "ANIME")
+    anilist_title = _from_anilist({"id": 303, "type": "ANIME", "title": {"romaji": "Last fallback"}})
+    providers = ProviderRegistry(
+        FakeProvider("anilist", [anilist_title]),
+        FakeProvider("kitsu", [kitsu_title]),
+        FakeProvider("myanimelist", [mal_title]),
+    )
+    results = await providers.search("title", "ANIME", limit=10)
+    assert [item.provider for item in results] == ["myanimelist", "kitsu", "anilist"]
+
+
+@pytest.mark.asyncio
+async def test_default_manga_search_uses_mangadex_before_catalogue_fallbacks():
+    manga = MediaTitle("mangadex", "00000000-0000-4000-8000-000000000001",
+                       "MangaDex primary", "MANGA", "https://mangadex.org/title/00000000-0000-4000-8000-000000000001")
+    kitsu_title = _from_kitsu({"id": "202", "attributes": {"canonicalTitle": "Kitsu fallback"}}, "MANGA")
+    anilist_title = _from_anilist({"id": 303, "type": "MANGA", "title": {"romaji": "AniList fallback"}})
+    class MangaDexFake(FakeProvider):
+        pass
+    providers = ProviderRegistry(
+        FakeProvider("anilist", [anilist_title]),
+        FakeProvider("kitsu", [kitsu_title]),
+        FakeProvider("myanimelist"),
+        MangaDexFake("mangadex", [manga]),
+    )
+    results = await providers.search("title", "MANGA", limit=10)
+    assert [item.provider for item in results] == ["mangadex", "kitsu", "anilist"]
+
+
+def test_mal_currently_airing_status_normalizes_to_releasing():
+    media = _from_mal({"id": 42, "title": "Airing", "status": "currently_airing"}, "ANIME")
+    assert media.provider == "myanimelist"
+    assert media.status == "RELEASING"
+
+
+def test_mal_broadcast_returns_a_future_japan_time_estimate():
+    import time
+    from bot.providers.myanimelist import _next_broadcast_timestamp
+
+    stamp = _next_broadcast_timestamp({"day_of_the_week": "saturdays", "start_time": "23:00"})
+    assert stamp is not None
+    assert stamp > int(time.time())
+    assert stamp <= int(time.time()) + 8 * 24 * 60 * 60
+
+
+def test_mal_invalid_broadcast_does_not_invent_a_schedule():
+    from bot.providers.myanimelist import _next_broadcast_timestamp
+
+    assert _next_broadcast_timestamp(None) is None
+    assert _next_broadcast_timestamp({"day_of_the_week": "unknown", "start_time": "23:00"}) is None
+    assert _next_broadcast_timestamp({"day_of_the_week": "sunday", "start_time": "invalid"}) is None
