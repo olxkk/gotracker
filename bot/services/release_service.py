@@ -110,22 +110,56 @@ class ReleaseService:
                 events.append(ReleaseItem(key, fresh.title, fresh.format, event_type, None, now, "unverified",
                                           "AniList metadata status", fresh.url,
                                           f"Catalog status changed from {old_status} to {new_status}. This is a metadata status change, not a separately verified official announcement.", False))
-        # MangaDex's catalogue doesn't supply chapter totals. Poll its chapter feed and
-        # emit a deduplicated event when the highest whole English chapter advances.
+        # Provider catalogue totals are useful progress signals for MAL, Kitsu and
+        # AniList, but they do not prove an exact publication time. Report increases
+        # explicitly as unverified catalogue updates, never as confirmed releases.
+        if old:
+            if fresh.format == "ANIME":
+                previous_count = old.get("episodes")
+                current_count = fresh.episodes
+                event_type = "new_episode"
+                label = "episode"
+            else:
+                previous_count = old.get("chapters")
+                current_count = fresh.chapters
+                event_type = "new_chapter"
+                label = "chapter"
+            if previous_count is not None and current_count is not None:
+                try:
+                    previous_count = int(previous_count)
+                    current_count = int(current_count)
+                except (TypeError, ValueError):
+                    previous_count = current_count = None
+                if previous_count is not None and current_count is not None and current_count > previous_count:
+                    source_name = {
+                        "anilist": "AniList catalogue",
+                        "kitsu": "Kitsu catalogue",
+                        "myanimelist": "MyAnimeList catalogue",
+                        "mangadex": "MangaDex catalogue",
+                    }.get(provider, f"{provider} catalogue")
+                    key = _key(provider, external_id, event_type, current_count, None)
+                    events.append(ReleaseItem(
+                        key, fresh.title, fresh.format, event_type, current_count, None,
+                        "unverified", source_name, fresh.url,
+                        f"The catalogue count increased from {previous_count} to {current_count} {label}s. "
+                        "This confirms a catalogue update, not the exact release time or availability.",
+                        False,
+                    ))
+
+        # MangaDex's catalogue does not expose a reliable chapter total. Its English
+        # chapter feed is the primary progress signal. Feed errors must bubble up so
+        # scheduler health records a failed check and the previous snapshot is retained.
         if fresh.format == "MANGA" and provider == "mangadex":
             implementation = self.providers.get_provider("mangadex")
             if implementation and hasattr(implementation, "latest_english_chapter"):
-                try:
-                    chapter_number, chapter_id, chapter_url = await implementation.latest_english_chapter(external_id)
-                except Exception:
-                    chapter_number = chapter_id = chapter_url = None
+                chapter_number, chapter_id, chapter_url = await implementation.latest_english_chapter(external_id)
                 if chapter_number is not None:
                     previous_chapter = (old or {}).get("chapters")
                     fresh.chapters = int(chapter_number)
                     if old and previous_chapter is not None and int(previous_chapter) < int(chapter_number):
                         chapter_link = chapter_url or fresh.url
-                        key = _key(provider, external_id, "new_chapter", int(chapter_number), now)
-                        events.append(ReleaseItem(key, fresh.title, "MANGA", "new_chapter", int(chapter_number), now,
+                        key = _key(provider, external_id, "new_chapter", int(chapter_number), None)
+                        events.append(ReleaseItem(key, fresh.title, "MANGA", "new_chapter", int(chapter_number), None,
                                                   "verified", "MangaDex English chapter feed", chapter_link,
                                                   f"MangaDex lists English chapter {int(chapter_number)}.", False))
         await self.repo.save_media(fresh, checked_at=now)
