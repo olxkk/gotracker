@@ -1,8 +1,21 @@
-# Anime & Manga Tracker Discord Bot
+# GoTracker — Anime & Manga Tracker for Discord
 
-A Discord bot for keeping track of anime and manga, checking release schedules, and getting updates in the channels you choose. It runs on Python 3.11+ with `discord.py`, SQLite, and a few data-source APIs. The deployment instructions below cover Ubuntu with `systemd`; you can use another host if it supports the same Python setup.
+GoTracker is a Python 3.11+ Discord bot for tracking anime and manga across servers, monitoring provider updates, and sending configurable release notifications to the channels you choose. It uses **MyAnimeList as the primary anime catalogue** and **MangaDex as the primary manga and chapter source**. Kitsu and AniList are secondary catalogue fallbacks; AniList is not the default anime provider.
 
-**A quick note about release info:** catalogue episode and chapter counts don’t prove that something just came out, and an airing time doesn’t guarantee an episode is available to stream. When the bot can’t confirm something, it should say so rather than guess.
+**Anime and manga coverage**
+- **Anime:** MyAnimeList-first search and discovery, including the `/random` anime picker. MAL broadcast day/time can be used as a weekly airing estimate when supplied by its API.
+- **Manga:** MangaDex-first search and chapter monitoring. The current chapter feed checks English whole-number chapter releases.
+- **Fallback catalogues:** Kitsu and AniList can help find titles when a primary source has no suitable result. A title remains associated with the provider ID selected for it; provider IDs are not interchangeable.
+
+**Tracking and notifications**
+- Checks tracked titles on a configurable background schedule (60 seconds by default).
+- Sends configurable Discord notifications with per-server watchlists, channel routing, mention policies, quiet hours, and per-title preferences.
+- Stores tracked titles, event history, source health, and notification deduplication in SQLite.
+- Includes RSS/Atom news monitoring and slash commands for tracking, releases, news, notifications, settings, status, and help.
+
+**Accuracy matters:** a catalogue count increase is not proof of an exact release time or streaming availability. MAL broadcast schedules are estimates, and MangaDex chapter coverage depends on the language and chapter format available in its feed. The bot labels unverified information rather than presenting it as confirmed. Provider outages, API limits, and Discord connectivity can affect update delivery.
+
+GoTracker runs on Python 3.11+ with `discord.py` and SQLite. The repository includes deployment guidance for Ubuntu/systemd and can be adapted to other Python-capable hosts such as cloud bot hosting services. GitHub stores the source code; it does not host the running bot.
 
 ## Want to keep the code on GitHub?
 
