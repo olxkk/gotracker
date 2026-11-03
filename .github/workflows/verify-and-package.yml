@@ -2,12 +2,9 @@ name: Verify and package GoTracker
 
 on:
   push:
-    branches:
-      - main
-      - fix/provider-release-detection
+    branches: [main, fix/provider-release-detection]
   pull_request:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -20,7 +17,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
           cache: pip
       - name: Install test dependencies
         run: python -m pip install -r requirements-dev.txt
@@ -33,26 +30,12 @@ jobs:
       - name: Build safe deployment ZIP
         run: |
           mkdir -p dist
-          zip -r dist/gotracker-release.zip . \
-            -x ".git/*" ".github/*" ".venv/*" "venv/*" \
-               ".env" "data/*" "*.sqlite3" "*.db" \
-               "**/__pycache__/*" "*.pyc" "dist/*" "tests/*" \
-               ".pytest_cache/*"
+          zip -r dist/gotracker-release.zip . -x '.git/*' '.github/*' '.venv/*' 'venv/*' '.env' 'data/*' '*.sqlite3' '*.db' '**/__pycache__/*' '*.pyc' 'dist/*' 'tests/*' '.pytest_cache/*'
       - name: Verify ZIP integrity and protected files are absent
         run: |
           unzip -t dist/gotracker-release.zip
-          if unzip -Z1 dist/gotracker-release.zip | grep -E '(^|/)\.env$|(^|/)tracker\.sqlite3$|(^|/)[^/]+\.sqlite3$|(^|/)[^/]+\.db; then
-            echo "Protected configuration/database file found in ZIP"
-            exit 1
-          fi
-      - uses: actions/upload-artifact@v4
-        with:
-          name: gotracker-release
-          path: dist/gotracker-release.zip
-          if-no-files-found: error
-          retention-days: 14
-; then
-            echo "Protected configuration/database file found in ZIP"
+          if unzip -Z1 dist/gotracker-release.zip | grep -E '(^|/)\.env$|\.sqlite3$|\.db$'; then
+            echo 'Protected configuration/database file found in ZIP'
             exit 1
           fi
       - uses: actions/upload-artifact@v4
