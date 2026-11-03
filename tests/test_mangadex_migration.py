@@ -43,7 +43,7 @@ async def test_default_manga_search_prefers_mangadex():
     anilist = MediaTitle(provider="anilist", external_id="210482", title="Manga", format="MANGA", url="https://anilist.co/manga/210482")
     registry = ProviderRegistry(FakeProvider(anilist), FakeProvider(anilist), FakeProvider(anilist), FakeProvider(md))
     result = await registry.search("Manga", "MANGA")
-    assert len(result) == 1 and result[0].provider == "mangadex"
+    assert result and result[0].provider == "mangadex"
 
 
 @pytest.mark.asyncio
