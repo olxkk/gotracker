@@ -23,9 +23,10 @@ class ProviderRegistry:
             if provider is None or (key == "mangadex" and str(media_format).upper() != "MANGA"):
                 return []
             return await provider.search(query, media_format, limit=max(1, min(limit, 10)))
-        # AniList is primary for anime schedule data. MangaDex is the default manga
-        # catalogue so newly selected manga use UUIDs that the chapter feed understands.
-        keys = ("mangadex", "anilist", "kitsu", "myanimelist") if str(media_format).upper() == "MANGA" else ("anilist", "kitsu", "myanimelist")
+        # MyAnimeList is the primary anime catalogue. MangaDex is the primary manga
+        # catalogue because its UUIDs map directly to its chapter feed. AniList is
+        # fallback-only; it must never outrank either selected primary source.
+        keys = ("mangadex", "myanimelist", "kitsu", "anilist") if str(media_format).upper() == "MANGA" else ("myanimelist", "kitsu", "anilist")
         for key in keys:
             try:
                 results = await self.providers[key].search(query, media_format, limit=max(1, min(limit, 8)))
