@@ -27,7 +27,7 @@ jobs:
       - name: Compile Python source
         run: python -m compileall -q bot.py config.py bot tests
       - name: Run complete test suite
-        run: pytest -q
+        run: python -m pytest -q
       - name: Check deployment script syntax
         run: bash -n deploy/setup_ubuntu.sh
       - name: Build safe deployment ZIP
