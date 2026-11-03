@@ -130,7 +130,10 @@ def _from_mal(row: dict[str, Any], media_format: str) -> MediaTitle:
         provider="myanimelist", external_id=ident, title=str(row.get("title") or f"MyAnimeList #{ident}")[:250], format=fmt,
         url=f"https://myanimelist.net/{'manga' if fmt == 'MANGA' else 'anime'}/{ident}",
         cover_url=str(picture.get("large") or picture.get("medium") or "")[:1000],
-        description=str(row.get("synopsis") or "")[:1500], status=str(row.get("status") or "UNKNOWN").upper(),
+        description=str(row.get("synopsis") or "")[:1500], status={
+            "currently_airing": "RELEASING", "finished_airing": "FINISHED",
+            "not_yet_aired": "NOT_YET_RELEASED"
+        }.get(str(row.get("status") or "").lower(), str(row.get("status") or "UNKNOWN").upper()),
         episodes=_int_or_none(row.get("num_episodes")), chapters=_int_or_none(row.get("num_chapters")),
         start_date=str(row.get("start_date") or ""), end_date=str(row.get("end_date") or ""),
         source_url=f"https://myanimelist.net/{'manga' if fmt == 'MANGA' else 'anime'}/{ident}",
