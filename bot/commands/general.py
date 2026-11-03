@@ -51,7 +51,7 @@ class GeneralCog(commands.Cog):
     @app_commands.command(name="random", description="Pick an anime to watch, with optional filters")
     @app_commands.describe(
         category="What kind of anime should I pick?",
-        minimum_score="Minimum AniList score out of 100 (used for Highly rated)",
+        minimum_score="Minimum MyAnimeList score out of 100 (used for Highly rated)",
         genre="Optional genre filter",
         max_episodes="Only suggest anime with this many episodes or fewer",
         year="Only suggest anime that started in this year",
@@ -78,7 +78,7 @@ class GeneralCog(commands.Cog):
     ):
         await interaction.response.defer(ephemeral=False, thinking=True)
         try:
-            result = await self.bot.providers.providers["anilist"].random_anime(
+            result = await self.bot.providers.providers["myanimelist"].random_anime(
                 category.value, int(minimum_score), genre.value if genre else None,
                 int(max_episodes) if max_episodes is not None else None,
                 int(year) if year is not None else None,
@@ -86,7 +86,7 @@ class GeneralCog(commands.Cog):
         except Exception as exc:
             log.warning("Random anime lookup failed (%s): %s", type(exc).__name__, str(exc)[:200])
             await interaction.followup.send(
-                "AniList couldn't find a pick just now. Give it a moment and try again.",
+                "MyAnimeList couldn't find a pick just now. Give it a moment and try again.",
                 allowed_mentions=discord.AllowedMentions.none(),
             )
             return
@@ -120,7 +120,7 @@ class GeneralCog(commands.Cog):
         if media.cover_url.startswith(("https://", "http://")):
             embed.set_thumbnail(url=media.cover_url)
         embed.add_field(name="Pick", value=category.name, inline=True)
-        embed.add_field(name="AniList score", value=f"{score}/100" if score else "Not available", inline=True)
+        embed.add_field(name="MyAnimeList score", value=f"{score}/100" if score else "Not available", inline=True)
         embed.add_field(name="Status", value=media.status.replace("_", " ").title(), inline=True)
         embed.add_field(name="Episodes", value=str(media.episodes) if media.episodes is not None else "Unknown", inline=True)
         active_filters = [genre.name if genre else None, f"≤{max_episodes} eps" if max_episodes is not None else None, str(year) if year is not None else None]
@@ -129,7 +129,7 @@ class GeneralCog(commands.Cog):
             embed.add_field(name="Filters", value=" · ".join(active_filters), inline=False)
         if media.next_episode and media.next_airing_at:
             embed.add_field(name="Next airing", value=f"Episode {media.next_episode} · <t:{int(media.next_airing_at)}:F>", inline=False)
-        embed.set_footer(text="Picked from AniList · Run /random again for another idea")
+        embed.set_footer(text="Picked from MyAnimeList · Run /random again for another idea")
         await interaction.followup.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
 
     @app_commands.command(name="status", description="Check whether the bot, database, and data sources are healthy")
@@ -189,7 +189,7 @@ class GeneralCog(commands.Cog):
     @app_commands.command(name="settings", description="Show effective bot and this server's settings")
     async def settings(self, interaction: discord.Interaction):
         embed = discord.Embed(title="Tracker settings", color=discord.Color.blurple())
-        embed.add_field(name="Provider availability", value=f"AniList: enabled\nKitsu: enabled\nMyAnimeList: {'enabled' if self.bot.settings.mal_client_id else 'disabled (optional client ID not configured)'}\nMangaDex: enabled for manga\nRSS feeds: {len(self.bot.rss_provider.feeds)} configured", inline=False)
+        embed.add_field(name="Provider availability", value=f"MyAnimeList (primary anime): {'enabled' if self.bot.settings.mal_client_id else 'disabled (MAL_CLIENT_ID required)'}\nKitsu (fallback): enabled\nAniList (fallback only): enabled\nMangaDex (primary manga): enabled\nMyAnimeList: {'enabled' if self.bot.settings.mal_client_id else 'disabled (optional client ID not configured)'}\nMangaDex: enabled for manga\nRSS feeds: {len(self.bot.rss_provider.feeds)} configured", inline=False)
         embed.add_field(name="Monitoring", value=f"Poll interval: {self.bot.settings.poll_interval_seconds} seconds\nHTTP timeout: {self.bot.settings.request_timeout_seconds} seconds\nDatabase: persistent SQLite file", inline=False)
         if interaction.guild_id:
             row = await self.bot.repo.ensure_guild(int(interaction.guild_id))
