@@ -121,3 +121,57 @@ async def test_mangadex_chapter_feed_failure_is_not_silently_saved(repo):
         await service.refresh("mangadex", old.external_id, "MANGA")
     saved = await repo.get_media("mangadex", old.external_id)
     assert saved["chapters"] == 8
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("provider", "media_format", "old_count", "new_count", "event_type"),
+    [
+        ("myanimelist", "ANIME", 12, 13, "new_episode"),
+        ("kitsu", "ANIME", 12, 13, "new_episode"),
+        ("anilist", "MANGA", 84, 85, "new_chapter"),
+        ("kitsu", "MANGA", 84, 85, "new_chapter"),
+        ("myanimelist", "MANGA", 84, 85, "new_chapter"),
+    ],
+)
+async def test_catalogue_count_increase_creates_unverified_progress_event(
+    repo, provider, media_format, old_count, new_count, event_type
+):
+    field = "episodes" if media_format == "ANIME" else "chapters"
+    old_media = MediaTitle(provider, "501", "Counted title", media_format, "https://example.test/title")
+    setattr(old_media, field, old_count)
+    await repo.add_track(7, old_media)
+
+    fresh = MediaTitle(provider, "501", "Counted title", media_format, "https://example.test/title")
+    setattr(fresh, field, new_count)
+    providers = ProviderRegistry(
+        FakeProvider("anilist", media= fresh if provider == "anilist" else None),
+        FakeProvider("kitsu", media=fresh if provider == "kitsu" else None),
+        FakeProvider("myanimelist", media=fresh if provider == "myanimelist" else None),
+    )
+    service = ReleaseService(repo, providers)
+    _, events = await service.refresh(provider, "501", media_format)
+
+    progress = [event for event in events if event.update_type == event_type]
+    assert len(progress) == 1
+    assert progress[0].number == new_count
+    assert progress[0].status == "unverified"
+    assert progress[0].release_at is None
+
+
+@pytest.mark.asyncio
+async def test_mangadex_chapter_feed_failure_is_not_swallowed(repo):
+    manga = MediaTitle("mangadex", "12345678-1234-1234-1234-123456789012", "Feed title", "MANGA", "https://mangadex.org/title/12345678-1234-1234-1234-123456789012")
+    await repo.add_track(7, manga)
+
+    class BrokenMangaDex(FakeProvider):
+        async def latest_english_chapter(self, external_id):
+            raise TimeoutError("chapter feed timed out")
+
+    providers = ProviderRegistry(
+        FakeProvider("anilist"), FakeProvider("kitsu"), FakeProvider("myanimelist"),
+        BrokenMangaDex("mangadex", media=manga),
+    )
+    service = ReleaseService(repo, providers)
+    with pytest.raises(TimeoutError):
+        await service.refresh("mangadex", manga.external_id, "MANGA")
