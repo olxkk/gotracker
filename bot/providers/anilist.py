@@ -6,7 +6,7 @@ from typing import Any
 
 import aiohttp
 
-from .base import MediaTitle
+from .base import MediaTitle, read_limited
 
 GRAPHQL_URL = "https://graphql.anilist.co"
 MEDIA_FIELDS = """
@@ -55,7 +55,7 @@ class AniListProvider:
                     timeout=self.timeout,
                     headers={"Accept": "application/json", "Content-Type": "application/json"},
                 ) as response:
-                    raw = await response.content.read(self.max_bytes + 1)
+                    raw = await read_limited(response, self.max_bytes)
                     if len(raw) > self.max_bytes:
                         raise ValueError("AniList response exceeded configured size limit")
                     if response.status == 429 and attempt < 2:
