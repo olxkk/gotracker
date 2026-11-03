@@ -72,7 +72,7 @@ async def test_conflicting_catalogue_sources_are_not_merged(repo):
     assert results[0].provider == "kitsu"
     assert results[0].next_airing_at is None
     assert results[1].provider == "anilist"
-    assert results[1].next_airing_at is None  # metadata from Kitsu did not overwrite AniList's schedule
+    assert results[1].next_airing_at == now + 3600  # AniList remains a fallback, not the first result
 
 
 
