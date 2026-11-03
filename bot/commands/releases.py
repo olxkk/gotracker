@@ -20,7 +20,7 @@ class ReleasesCog(commands.Cog):
         if track:
             provider, external_id, media_format = track["provider"], str(track["external_id"]), track["format"]
         else:
-            # Search both formats, preferring exact AniList matches because it supplies airing schedules.
+            # Search both formats, preferring the configured primary catalogue for each format.
             results = []
             for fmt in ("ANIME", "MANGA"):
                 try:
@@ -28,9 +28,10 @@ class ReleasesCog(commands.Cog):
                 except Exception:
                     continue
             exact = [item for item in results if item.title.casefold() == title.casefold()]
-            anilist_exact = [item for item in exact if item.provider == "anilist"]
-            if len(anilist_exact) == 1:
-                media = anilist_exact[0]
+            primary_by_format = {"ANIME": "myanimelist", "MANGA": "mangadex"}
+            primary_exact = [item for item in exact if item.provider == primary_by_format.get(item.format)]
+            if len(primary_exact) == 1:
+                media = primary_exact[0]
             elif len(exact) == 1:
                 media = exact[0]
             else:
