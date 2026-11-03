@@ -56,8 +56,9 @@ class ReleasesCog(commands.Cog):
             embed = discord.Embed(title=f"Next scheduled airing: {clean_text(media.title, 200)}", url=media.url, color=discord.Color.blurple())
             embed.add_field(name="Episode", value=str(media.next_episode if media.next_episode is not None else "Unknown"), inline=True)
             embed.add_field(name="Date and time", value=f"<t:{stamp}:F>\n<t:{stamp}:R> (Discord local timezone)", inline=False)
-            embed.add_field(name="Status", value="Scheduled by AniList; not proof that the episode is available to stream.", inline=False)
-            embed.add_field(name="Source", value=f"[AniList entry]({media.url})", inline=False)
+            schedule_label = "MyAnimeList weekly broadcast estimate" if media.provider == "myanimelist" else "AniList airing schedule"
+            embed.add_field(name="Status", value=f"{schedule_label}; not proof that the episode is available to stream.", inline=False)
+            embed.add_field(name="Source", value=f"[{media.provider.title()} entry]({media.url})", inline=False)
             if media.cover_url.startswith("https://"):
                 embed.set_thumbnail(url=media.cover_url)
             await interaction.followup.send(embed=embed, ephemeral=True)
