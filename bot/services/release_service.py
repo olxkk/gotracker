@@ -62,7 +62,7 @@ class ReleaseService:
             return None, []
         events: list[ReleaseItem] = []
         schedule_source = {
-            "anilist": schedule_source,
+            "anilist": "AniList airing schedule",
             "myanimelist": "MyAnimeList weekly broadcast estimate",
         }.get(provider, f"{provider} schedule metadata")
         previous_at = old.get("next_airing_at") if old else None
