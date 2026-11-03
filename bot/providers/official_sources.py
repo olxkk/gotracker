@@ -11,7 +11,7 @@ from typing import Iterable
 import aiohttp
 import feedparser
 
-from .base import NewsItem
+from .base import NewsItem, read_limited
 
 
 class OfficialSourcesProvider:
@@ -50,7 +50,7 @@ class OfficialSourcesProvider:
                         if response.status >= 400:
                             self.last_errors.append(f"{source_name}: HTTP {response.status}")
                             break
-                        candidate = await response.content.read(self.max_bytes + 1)
+                        candidate = await read_limited(response, self.max_bytes)
                         if len(candidate) > self.max_bytes:
                             self.last_errors.append(f"{source_name}: response too large")
                             break
