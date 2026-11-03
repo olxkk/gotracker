@@ -6,7 +6,7 @@ from typing import Any
 
 import aiohttp
 
-from .base import MediaTitle
+from .base import MediaTitle, read_limited
 
 
 class MyAnimeListProvider:
@@ -30,7 +30,7 @@ class MyAnimeListProvider:
             try:
                 async with self.session.get(f"{self.BASE_URL}/{path}", params=params, timeout=self.timeout,
                                            headers={"X-MAL-CLIENT-ID": self.client_id, "Accept": "application/json"}) as response:
-                    raw = await response.content.read(self.max_bytes + 1)
+                    raw = await read_limited(response, self.max_bytes)
                     if len(raw) > self.max_bytes:
                         raise ValueError("MyAnimeList response exceeded configured size limit")
                     if response.status == 429 and attempt < 2:
