@@ -105,3 +105,21 @@ def test_mal_currently_airing_status_normalizes_to_releasing():
     media = _from_mal({"id": 42, "title": "Airing", "status": "currently_airing"}, "ANIME")
     assert media.provider == "myanimelist"
     assert media.status == "RELEASING"
+
+
+def test_mal_broadcast_returns_a_future_japan_time_estimate():
+    import time
+    from bot.providers.myanimelist import _next_broadcast_timestamp
+
+    stamp = _next_broadcast_timestamp({"day_of_the_week": "saturdays", "start_time": "23:00"})
+    assert stamp is not None
+    assert stamp > int(time.time())
+    assert stamp <= int(time.time()) + 8 * 24 * 60 * 60
+
+
+def test_mal_invalid_broadcast_does_not_invent_a_schedule():
+    from bot.providers.myanimelist import _next_broadcast_timestamp
+
+    assert _next_broadcast_timestamp(None) is None
+    assert _next_broadcast_timestamp({"day_of_the_week": "unknown", "start_time": "23:00"}) is None
+    assert _next_broadcast_timestamp({"day_of_the_week": "sunday", "start_time": "invalid"}) is None
