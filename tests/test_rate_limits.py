@@ -6,6 +6,9 @@ from bot.providers.anilist import AniListProvider
 class FakeContent:
     def __init__(self, data): self.data = data
     async def read(self, amount): return self.data[:amount]
+    async def iter_chunked(self, size):
+        for offset in range(0, len(self.data), size):
+            yield self.data[offset:offset + size]
 
 
 class FakeResponse:
