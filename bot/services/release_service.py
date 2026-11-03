@@ -76,7 +76,7 @@ class ReleaseService:
                 key = _key(provider, external_id, "episode_window_passed", previous_ep, previous_at)
                 events.append(ReleaseItem(key, fresh.title, fresh.format, "episode_window_passed", previous_ep, previous_at,
                                           "unverified", schedule_source, fresh.url,
-                                          "The scheduled airing window has passed. Availability is not verified by AniList.", False))
+                                          "The scheduled airing window has passed. Availability is not verified by the catalogue source.", False))
             elif fresh.next_airing_at and previous_ep == fresh_ep:
                 changed_at = int(fresh.next_airing_at)
                 delay = changed_at > previous_at + 60
@@ -99,7 +99,7 @@ class ReleaseService:
                 key = _key(provider, external_id, "upcoming_episode", fresh.next_episode, fresh.next_airing_at)
                 events.append(ReleaseItem(key, fresh.title, fresh.format, "upcoming_episode", fresh.next_episode, fresh.next_airing_at,
                                           "scheduled", schedule_source, fresh.url,
-                                          "Scheduled airing time from AniList; availability is not confirmed.", False))
+                                          "Scheduled airing estimate from the selected provider; availability is not confirmed.", False))
         if old and old.get("status") and str(old.get("status")).upper() != fresh.status.upper():
             old_status = str(old.get("status")).upper()
             new_status = fresh.status.upper()
