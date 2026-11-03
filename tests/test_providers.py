@@ -35,3 +35,35 @@ async def test_search_falls_back_when_primary_api_fails():
     providers = ProviderRegistry(FakeProvider("anilist", error=RuntimeError("429")), FakeProvider("kitsu", [expected]), FakeProvider("myanimelist"))
     results = await providers.search("Fallback", "ANIME")
     assert len(results) == 1 and results[0].provider == "kitsu"
+
+
+
+@pytest.mark.asyncio
+async def test_bounded_reader_waits_for_complete_response_body():
+    from bot.providers.base import read_limited
+
+    class Content:
+        async def iter_chunked(self, size):
+            yield b'{"data":'
+            yield b'{"ok":true}}'
+
+    class Response:
+        content = Content()
+
+    assert await read_limited(Response(), 64) == b'{"data":{"ok":true}}'
+
+
+@pytest.mark.asyncio
+async def test_bounded_reader_rejects_oversized_response():
+    from bot.providers.base import read_limited
+
+    class Content:
+        async def iter_chunked(self, size):
+            yield b"1234"
+            yield b"5678"
+
+    class Response:
+        content = Content()
+
+    with pytest.raises(ValueError, match="size limit"):
+        await read_limited(Response(), 5)
