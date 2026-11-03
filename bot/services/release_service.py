@@ -61,6 +61,10 @@ class ReleaseService:
         if fresh is None:
             return None, []
         events: list[ReleaseItem] = []
+        schedule_source = {
+            "anilist": schedule_source,
+            "myanimelist": "MyAnimeList weekly broadcast estimate",
+        }.get(provider, f"{provider} schedule metadata")
         previous_at = old.get("next_airing_at") if old else None
         previous_ep = old.get("next_episode") if old else None
         if old and fresh.format == "ANIME" and previous_at and fresh.next_airing_at != previous_at:
@@ -71,7 +75,7 @@ class ReleaseService:
                 # A schedule advancing proves only that the planned time passed, not that a platform made it available.
                 key = _key(provider, external_id, "episode_window_passed", previous_ep, previous_at)
                 events.append(ReleaseItem(key, fresh.title, fresh.format, "episode_window_passed", previous_ep, previous_at,
-                                          "unverified", "AniList airing schedule", fresh.url,
+                                          "unverified", schedule_source, fresh.url,
                                           "The scheduled airing window has passed. Availability is not verified by AniList.", False))
             elif fresh.next_airing_at and previous_ep == fresh_ep:
                 changed_at = int(fresh.next_airing_at)
@@ -80,12 +84,12 @@ class ReleaseService:
                 key = _key(provider, external_id, event_type, fresh_ep, changed_at)
                 summary = "The next airing time moved later; this is a schedule-derived delay and is not an official announcement." if delay else "The airing schedule changed; verify the date at the linked source."
                 events.append(ReleaseItem(key, fresh.title, fresh.format, event_type, fresh_ep, changed_at,
-                                          "estimated", "AniList airing schedule", fresh.url, summary, False))
+                                          "estimated", schedule_source, fresh.url, summary, False))
             elif fresh.next_airing_at and fresh_ep != previous_ep:
                 changed_at = int(fresh.next_airing_at)
                 key = _key(provider, external_id, "schedule_change", fresh_ep, changed_at)
                 events.append(ReleaseItem(key, fresh.title, fresh.format, "schedule_change", fresh_ep, changed_at,
-                                          "scheduled", "AniList airing schedule", fresh.url,
+                                          "scheduled", schedule_source, fresh.url,
                                           "The provider advanced to a different upcoming episode schedule; availability of the previous episode is not verified.", False))
         # A fresh entry can show upcoming schedule data, but the initial tracked snapshot is baseline-only.
         if old and fresh.format == "ANIME" and fresh.next_airing_at and int(fresh.next_airing_at) > now:
@@ -94,7 +98,7 @@ class ReleaseService:
             if schedule_changed and number_changed and int(fresh.next_airing_at) <= now + 14 * 86400:
                 key = _key(provider, external_id, "upcoming_episode", fresh.next_episode, fresh.next_airing_at)
                 events.append(ReleaseItem(key, fresh.title, fresh.format, "upcoming_episode", fresh.next_episode, fresh.next_airing_at,
-                                          "scheduled", "AniList airing schedule", fresh.url,
+                                          "scheduled", schedule_source, fresh.url,
                                           "Scheduled airing time from AniList; availability is not confirmed.", False))
         if old and old.get("status") and str(old.get("status")).upper() != fresh.status.upper():
             old_status = str(old.get("status")).upper()
@@ -109,7 +113,7 @@ class ReleaseService:
             if event_type:
                 key = _key(provider, external_id, event_type, None, now)
                 events.append(ReleaseItem(key, fresh.title, fresh.format, event_type, None, now, "unverified",
-                                          "AniList metadata status", fresh.url,
+                                          f"{provider} catalogue status", fresh.url,
                                           f"Catalog status changed from {old_status} to {new_status}. This is a metadata status change, not a separately verified official announcement.", False))
         # Provider catalogue totals are useful progress signals for MAL, Kitsu and
         # AniList, but they do not prove an exact publication time. Report increases
