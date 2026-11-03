@@ -2,6 +2,7 @@ import pytest
 from bot.providers.anilist import _from_anilist
 from bot.providers.kitsu import _from_kitsu
 from bot.providers.myanimelist import _from_mal
+from bot.providers.base import MediaTitle
 from bot.services.release_service import ProviderRegistry
 
 
