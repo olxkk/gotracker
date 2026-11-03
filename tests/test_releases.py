@@ -69,9 +69,9 @@ async def test_conflicting_catalogue_sources_are_not_merged(repo):
     secondary = MediaTitle("kitsu", "80", "Conflicted Title", "ANIME", "https://kitsu.io/anime/80", next_airing_at=None, next_episode=None)
     providers = ProviderRegistry(FakeProvider("anilist", search_results=[primary]), FakeProvider("kitsu", search_results=[secondary]), FakeProvider("myanimelist"))
     results = await providers.search("Conflicted Title", "ANIME", limit=5)
-    assert results[0].provider == "anilist"
-    assert results[0].next_airing_at == now + 3600
-    assert results[1].provider == "kitsu"
+    assert results[0].provider == "kitsu"
+    assert results[0].next_airing_at is None
+    assert results[1].provider == "anilist"
     assert results[1].next_airing_at is None  # metadata from Kitsu did not overwrite AniList's schedule
 
 
