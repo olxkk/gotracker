@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import logging
+import ssl
 import time
 
 import aiohttp
+import certifi
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -48,7 +50,8 @@ class AnimeTrackerBot(commands.Bot):
         if not self.settings.discord_token:
             raise RuntimeError("DISCORD_TOKEN is missing. Copy .env.example to .env and configure it before starting the bot.")
         timeout = aiohttp.ClientTimeout(total=self.settings.request_timeout_seconds)
-        connector = aiohttp.TCPConnector(limit=12, ttl_dns_cache=300)
+        ssl_context = ssl.create_default_context(cafile=certifi.where())
+        connector = aiohttp.TCPConnector(limit=12, ttl_dns_cache=300, ssl=ssl_context)
         self.http_session = aiohttp.ClientSession(timeout=timeout, connector=connector,
                                                   headers={"User-Agent": self.settings.user_agent})
         self.db = Database(self.settings.database_path)
