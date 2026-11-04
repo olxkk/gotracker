@@ -38,7 +38,7 @@ class MangaDexProvider:
             if response.status == 429:
                 raise RuntimeError("MangaDex rate limit reached; try again later")
             if response.status >= 400:
-                raise RuntimeError(f"MangaDex returned HTTP {response.status}")
+                raise RuntimeError(f"MangaDex returned HTTP {response.status}: {raw[:1000].decode('utf-8', errors='replace')}")
             import json
             payload = json.loads(raw.decode("utf-8"))
             if not isinstance(payload, dict):
@@ -52,7 +52,11 @@ class MangaDexProvider:
         if "mangadex.org/title/" in query:
             exact = await self.get(query, "MANGA")
             return [exact] if exact else []
-        payload = await self._get_json("/manga", {"title": query[:100], "limit": min(max(int(limit), 1), 10), "order[relevance]": "desc", "includes[]": ["cover_art"]})
+        payload = await self._get_json("/manga", {
+            "title": query[:100],
+            "limit": min(max(int(limit), 1), 10),
+            "order[relevance]": "desc"
+        })
         return [self._from_row(row) for row in payload.get("data", []) if isinstance(row, dict)]
 
     async def get(self, external_id: str, media_format: str = "MANGA") -> MediaTitle | None:
@@ -64,15 +68,19 @@ class MangaDexProvider:
             manga_id = manga_id.split("mangadex.org/title/", 1)[1].split("/", 1)[0].split("?", 1)[0]
         if len(manga_id) != 36 or manga_id.count("-") != 4:
             return None
-        payload = await self._get_json(f"/manga/{quote(manga_id, safe='-')}", {"includes[]": ["cover_art"]})
+        payload = await self._get_json(f"/manga/{quote(manga_id, safe='-')}")
         row = payload.get("data")
         return self._from_row(row) if isinstance(row, dict) else None
 
     async def latest_english_chapter(self, manga_id: str) -> tuple[int | None, str | None, str | None]:
         """Return newest English whole chapter number, chapter UUID and URL."""
         payload = await self._get_json("/chapter", {
-            "manga[]": manga_id, "translatedLanguage[]": ["en"], "includeExternalUrl": "0",
-            "order[chapter]": "desc", "limit": "100", "contentRating[]": ["safe", "suggestive", "erotica"],
+            "manga": manga_id,
+            "translatedLanguage[]": ["en"],
+            "includeExternalUrl": "0",
+            "order[chapter]": "desc",
+            "limit": "100",
+            "contentRating[]": ["safe", "suggestive", "erotica"],
         })
         rows = payload.get("data", [])
         # API chapter ordering is lexical; numeric parsing and max() avoid 9 being chosen over 10.
@@ -113,7 +121,6 @@ class MangaDexProvider:
             if relation.get("type") == "cover_art":
                 cover_file = str((relation.get("attributes") or {}).get("fileName") or "")
                 if not cover_file:
-                    # Some API responses include only the relation ID; don't make another call per result.
                     cover_file = ""
                 break
         cover = f"https://uploads.mangadex.org/covers/{manga_id}/{quote(cover_file)}.256.jpg" if cover_file else ""
@@ -121,7 +128,16 @@ class MangaDexProvider:
         links = attrs.get("links") or {}
         anilist_id = links.get("al") if isinstance(links, dict) else None
         external_ids = {"anilist": str(anilist_id)} if anilist_id is not None and str(anilist_id).isdigit() else {}
-        return MediaTitle(provider="mangadex", external_id=manga_id, title=str(title or f"MangaDex title {manga_id[:8]}")[:250],
-                          format="MANGA", url=f"https://mangadex.org/title/{manga_id}", cover_url=cover,
-                          description=str(attrs.get("description", {}).get("en", "") if isinstance(attrs.get("description"), dict) else "")[:1500],
-                          status=status, chapters=None, source_url=f"https://mangadex.org/title/{manga_id}", external_ids=external_ids)
+        return MediaTitle(
+            provider="mangadex",
+            external_id=manga_id,
+            title=str(title or f"MangaDex title {manga_id[:8]}")[:250],
+            format="MANGA",
+            url=f"https://mangadex.org/title/{manga_id}",
+            cover_url=cover,
+            description=str(attrs.get("description", {}).get("en", "") if isinstance(attrs.get("description"), dict) else "")[:1500],
+            status=status,
+            chapters=None,
+            source_url=f"https://mangadex.org/title/{manga_id}",
+            external_ids=external_ids
+        )
