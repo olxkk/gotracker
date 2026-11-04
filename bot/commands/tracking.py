@@ -80,8 +80,12 @@ class TrackingCog(commands.Cog):
             label = "Anime" if row["format"] == "ANIME" else "Manga"
             detail = f"**{label}** · {row['provider']} · notifications {'on' if row['notifications_enabled'] else 'off'}"
             if row["format"] == "ANIME":
-                if row.get("next_episode") and row.get("next_airing_at"):
-                    detail += f"\nNext: episode {row['next_episode']} · <t:{int(row['next_airing_at'])}:F> (scheduled)"
+                if row.get("next_airing_at"):
+                    airing_time = f"<t:{int(row['next_airing_at'])}:F>"
+                    if row.get("next_episode"):
+                        detail += f"\nNext: episode {row['next_episode']} · {airing_time} (MAL/AniList schedule)"
+                    else:
+                        detail += f"\nNext broadcast: {airing_time} (weekly schedule; episode number not provided)"
                 else:
                     detail += "\nUpcoming episode: no reliable schedule"
             else:
